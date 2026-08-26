@@ -1,8 +1,15 @@
-peak_ai/
-├── main.py          # Main entry point
-├── chat.py          # Core conversation logic
-├── math_ops.py      # All math functions
-├── graphics.py      # Plotting and visualization
-├── draw_turtle.py   # Turtle drawings
-├── utils.py         # Helper functions
-└── data/            # Optional: for saved conversations
+terminator/
+├── app.py                 # Flask web server (main entry point)
+├── requirements.txt       # Python dependencies
+├── render.yaml           # Render deployment config (optional)
+├── README.md             # Project documentation
+├── chat.py               # Your existing chat module
+├── math_ops.py           # Your existing math module
+├── graphics.py           # Your existing graphics module
+├── draw_turtle.py        # Your existing turtle module
+├── utils.py              # Your existing utils module
+├── static/               # Static files (CSS, JS, images)
+│   ├── style.css
+│   └── script.js
+└── templates/            # HTML templates
+    └── index.html
