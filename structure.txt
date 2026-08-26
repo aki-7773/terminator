@@ -1,0 +1,8 @@
+peak_ai/
+├── main.py          # Main entry point
+├── chat.py          # Core conversation logic
+├── math_ops.py      # All math functions
+├── graphics.py      # Plotting and visualization
+├── draw_turtle.py   # Turtle drawings
+├── utils.py         # Helper functions
+└── data/            # Optional: for saved conversations
