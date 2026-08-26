@@ -1,1 +1,73 @@
-abc
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ Terminator AI - Peak Intelligence</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="logo">🤖</div>
+                <div>
+                    <h1>Terminator AI</h1>
+                    <p class="subtitle">⚡ Peak Performance Intelligence</p>
+                </div>
+                <div class="status-badge" id="statusBadge">
+                    <span class="status-dot"></span>
+                    <span id="statusText">Online</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div class="chat-container" id="chatContainer">
+            <div class="chat-messages" id="chatMessages">
+                <div class="message ai-message">
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-avatar">🤖</span>
+                            <span class="message-sender">Terminator AI</span>
+                        </div>
+                        <div class="message-text">
+                            Hello! I'm Terminator AI, the ultimate assistant. I can do math, draw, search the web, analyze data, and chat! 🚀
+                            <br><br>
+                            Try asking me something or type <strong>help</strong> to see what I can do!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Typing Indicator -->
+        <div class="typing-indicator" id="typingIndicator">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="input-container">
+                <input type="text" id="userInput" placeholder="Ask me anything..." autofocus>
+                <button id="sendButton" onclick="sendMessage()">
+                    <span>➤</span>
+                </button>
+            </div>
+            <div class="quick-actions">
+                <button onclick="quickSend('help')" class="quick-btn">📖 Help</button>
+                <button onclick="quickSend('tell me a joke')" class="quick-btn">😂 Joke</button>
+                <button onclick="quickSend('search news')" class="quick-btn">🌐 Search</button>
+                <button onclick="quickSend('plot sin')" class="quick-btn">📊 Plot</button>
+                <button onclick="quickSend('draw circle')" class="quick-btn">🎨 Draw</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
