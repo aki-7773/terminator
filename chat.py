@@ -9,8 +9,19 @@ import os
 from datetime import datetime
 from math_ops import MathOperations
 from graphics import GraphicsHandler
-from draw_turtle import TurtleDrawer
 from utils import Utils
+
+# Try to import turtle drawer, but make it optional
+try:
+    from draw_turtle import TurtleDrawer
+except ImportError:
+    # If turtle can't be imported, use a dummy class
+    class TurtleDrawer:
+        def __init__(self):
+            self.turtle_available = False
+            self.turtle_ready = False
+        def draw(self, user_input):
+            return "Turtle drawing is not available in this environment. Try using 'plot' instead!"
 
 class PeakAI:
     """Main AI Assistant with conversation capabilities"""
@@ -34,8 +45,18 @@ class PeakAI:
         # Initialize sub-modules
         self.math = MathOperations()
         self.graphics = GraphicsHandler()
-        self.drawer = TurtleDrawer()
+        try:
+            self.drawer = TurtleDrawer()
+        except:
+            # Fallback if TurtleDrawer can't be initialized
+            class DummyDrawer:
+                def draw(self, user_input):
+                    return "Turtle drawing requires a GUI environment. Not available on Render."
+                turtle_available = False
+                turtle_ready = False
+            self.drawer = DummyDrawer()
         self.utils = Utils()
+    
         
     def greet(self):
         """Generate personalized greeting"""
