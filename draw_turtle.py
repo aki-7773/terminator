@@ -1,21 +1,35 @@
 """
 Peak AI - Turtle Drawing Module
-Handles all turtle graphics
+Handles all turtle graphics (web-safe version)
 """
 
 import re
-import turtle
 
 class TurtleDrawer:
-    """Handles all turtle drawings"""
+    """Handles all turtle drawings - web-safe version"""
     
     def __init__(self):
-        self.turtle_ready = True
+        self.turtle_ready = False
+        self.turtle_available = False
+        
+        # Try to import turtle only if available
+        try:
+            import turtle
+            self.turtle = turtle
+            self.turtle_available = True
+            self.turtle_ready = True
+        except ImportError:
+            # Turtle not available (e.g., on Render)
+            self.turtle_available = False
+            self.turtle_ready = False
     
     def draw(self, user_input):
-        """Draw various shapes with turtle"""
+        """Draw various shapes with turtle (if available)"""
+        if not self.turtle_available:
+            return "🎨 Turtle drawing is not available in this environment (requires GUI). Try using 'plot' or 'graph' commands instead!"
+        
         try:
-            t = turtle.Turtle()
+            t = self.turtle.Turtle()
             t.speed(3)
             t.pensize(2)
             lower_input = user_input.lower()
@@ -52,7 +66,7 @@ class TurtleDrawer:
         t.begin_fill()
         t.circle(radius)
         t.end_fill()
-        turtle.done()
+        self.turtle.done()
         return f"✅ Circle with radius {radius}!"
     
     def draw_square(self, t, user_input):
@@ -65,7 +79,7 @@ class TurtleDrawer:
             t.forward(side)
             t.right(90)
         t.end_fill()
-        turtle.done()
+        self.turtle.done()
         return f"✅ Square with side {side}!"
     
     def draw_triangle(self, t, user_input):
@@ -78,7 +92,7 @@ class TurtleDrawer:
             t.forward(side)
             t.right(120)
         t.end_fill()
-        turtle.done()
+        self.turtle.done()
         return f"✅ Triangle with side {side}!"
     
     def draw_star(self, t):
@@ -89,7 +103,7 @@ class TurtleDrawer:
             t.forward(100)
             t.right(144)
         t.end_fill()
-        turtle.done()
+        self.turtle.done()
         return "✅ Star drawn! ✨"
     
     def draw_spiral(self, t):
@@ -97,7 +111,7 @@ class TurtleDrawer:
         for i in range(50):
             t.forward(i * 2)
             t.right(91)
-        turtle.done()
+        self.turtle.done()
         return "✅ Spiral drawn!"
     
     def draw_house(self, t):
@@ -118,7 +132,7 @@ class TurtleDrawer:
         t.goto(100, 100)
         t.end_fill()
         
-        turtle.done()
+        self.turtle.done()
         return "✅ House drawn! 🏠"
     
     def draw_flower(self, t):
@@ -128,7 +142,7 @@ class TurtleDrawer:
             t.color(colors[i % 6])
             t.forward(100)
             t.right(170)
-        turtle.done()
+        self.turtle.done()
         return "✅ Flower drawn! 🌸"
     
     def draw_mandala(self, t):
@@ -140,7 +154,7 @@ class TurtleDrawer:
             t.right(170)
             t.forward(50)
             t.right(190)
-        turtle.done()
+        self.turtle.done()
         return "✅ Mandala drawn! 🎨"
     
     def draw_hexagon(self, t, user_input):
@@ -153,7 +167,7 @@ class TurtleDrawer:
             t.forward(side)
             t.right(60)
         t.end_fill()
-        turtle.done()
+        self.turtle.done()
         return f"✅ Hexagon with side {side}!"
     
     def draw_pattern(self, t):
@@ -163,5 +177,5 @@ class TurtleDrawer:
             t.color(colors[i % 6])
             t.forward(100)
             t.right(170)
-        turtle.done()
+        self.turtle.done()
         return "✅ Abstract pattern drawn!"
