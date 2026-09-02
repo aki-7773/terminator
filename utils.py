@@ -1,217 +1,340 @@
 """
 Peak AI - Utilities Module
-Helper functions for various tasks including web search
+Multi-API support: Tavily (web search), Qdrant (vector DB), Weather (free)
 """
 
 import random
 import requests
-from datetime import datetime
 import os
 import re
+import time
+import json
+from datetime import datetime
 
 class Utils:
-    """Utility functions for the AI assistant"""
+    """Utility functions with multiple API support"""
     
     def __init__(self):
         # Internet search configuration
         self.internet_enabled = True
-        self.search_api_key = os.getenv('SEARCH_API_KEY', '')
-        self.search_api_url = os.getenv('SEARCH_API_URL', 'https://api.scavio.dev/api/v1/search')
-        self.use_fallback_search = True if not self.search_api_key else False
         
-    def execute_code(self, code):
-        """Execute simple Python code (Caution: Security risk!)"""
+        # ---- TAVILY API (Web Search) ----
+        self.tavily_api_key = os.getenv('TAVILY_API_KEY', '')
+        self.tavily_api_url = 'https://api.tavily.com/search'
+        
+        # ---- QDRANT API (Vector Database) ----
+        self.qdrant_api_key = os.getenv('QDRANT_API_KEY', '')
+        self.qdrant_url = os.getenv('QDRANT_URL', '')
+        self.qdrant_collection = os.getenv('QDRANT_COLLECTION', 'terminator_knowledge')
+        
+        # ---- Weather API (free) ----
+        self.weather_enabled = True
+        
+        # ---- Status tracking ----
+        self.api_status = {
+            'tavily': bool(self.tavily_api_key),
+            'qdrant': bool(self.qdrant_api_key and self.qdrant_url),
+            'weather': True
+        }
+        
+        # Statistics tracking
+        self.stats = {
+            'api_usage': {
+                'tavily': 0,
+                'qdrant': 0,
+                'weather': 0
+            }
+        }
+        
+    # ============================================
+    # TAVILY API - Web Search
+    # ============================================
+    
+    def search_tavily(self, query):
+        """
+        Search using Tavily API (1k free credits/month)
+        """
+        if not self.tavily_api_key:
+            return None
+        
         try:
-            # Security check
-            forbidden = ['import', 'open', 'file', 'system', 'exec', 'eval']
-            if any(keyword in code for keyword in forbidden):
-                return "⚠️ Security restriction: Unsafe code detected."
+            response = requests.post(
+                self.tavily_api_url,
+                headers={
+                    'Authorization': f'Bearer {self.tavily_api_key}',
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'query': query,
+                    'search_depth': 'basic',  # Use 'basic' to save credits
+                    'include_answer': True,
+                    'include_images': False,
+                    'max_results': 5
+                },
+                timeout=15
+            )
             
-            result = eval(code)
-            return f"✅ Result: {result}"
+            if response.status_code == 200:
+                data = response.json()
+                results = data.get('results', [])
+                
+                if results:
+                    formatted = []
+                    
+                    # Add the answer if available
+                    if data.get('answer'):
+                        formatted.append(f"💡 **Summary:** {data['answer']}\n")
+                    
+                    # Add search results
+                    for r in results[:3]:
+                        formatted.append(
+                            f"📌 {r.get('title', 'No title')}\n"
+                            f"📝 {r.get('content', 'No description')[:300]}...\n"
+                            f"🔗 Source: {r.get('url', 'No link')}\n"
+                        )
+                    
+                    self.stats['api_usage']['tavily'] += 1
+                    return '\n'.join(formatted)
+                else:
+                    return "No results found on Tavily."
+            else:
+                return f"Tavily API error: {response.status_code}"
+                
         except Exception as e:
-            return f"❌ Error: {str(e)}"
+            return f"Tavily search failed: {str(e)}"
+    
+    # ============================================
+    # QDRANT API - Vector Database
+    # ============================================
+    
+    def search_qdrant(self, query):
+        """
+        Search Qdrant vector database for similar stored information
+        """
+        if not self.qdrant_api_key or not self.qdrant_url:
+            return None
+        
+        try:
+            # Simple keyword search (for demo - in production use embeddings)
+            response = requests.post(
+                f"{self.qdrant_url}/collections/{self.qdrant_collection}/points/search",
+                headers={
+                    'api-key': self.qdrant_api_key,
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'limit': 3,
+                    # In production, add vector search here
+                    # 'vector': embedding,
+                    'filter': {
+                        'must': [
+                            {
+                                'key': 'text',
+                                'match': {
+                                    'text': query
+                                }
+                            }
+                        ]
+                    }
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                results = data.get('result', [])
+                
+                if results:
+                    formatted = ["📚 **Stored Knowledge from Qdrant:**\n"]
+                    for i, point in enumerate(results[:3], 1):
+                        payload = point.get('payload', {})
+                        text = payload.get('text', 'No content')
+                        source = payload.get('source', 'Unknown')
+                        formatted.append(
+                            f"{i}. {text[:300]}...\n"
+                            f"   📎 Source: {source}\n"
+                        )
+                    self.stats['api_usage']['qdrant'] += 1
+                    return '\n'.join(formatted)
+            
+            return None
+            
+        except Exception as e:
+            return f"Qdrant search failed: {str(e)}"
+    
+    def store_in_qdrant(self, text, metadata=None):
+        """
+        Store text in Qdrant for future retrieval
+        """
+        if not self.qdrant_api_key or not self.qdrant_url:
+            return "Qdrant not configured"
+        
+        try:
+            # In production, you'd generate an embedding
+            response = requests.put(
+                f"{self.qdrant_url}/collections/{self.qdrant_collection}/points",
+                headers={
+                    'api-key': self.qdrant_api_key,
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'points': [
+                        {
+                            'id': int(time.time() * 1000),
+                            'payload': {
+                                'text': text,
+                                'source': metadata.get('source', 'user_input'),
+                                'timestamp': datetime.now().isoformat(),
+                                **metadata
+                            }
+                        }
+                    ]
+                },
+                timeout=10
+            )
+            
+            if response.status_code in [200, 201]:
+                return "✅ Stored in Qdrant!"
+            else:
+                return f"Qdrant store failed: {response.status_code}"
+                
+        except Exception as e:
+            return f"Qdrant store failed: {str(e)}"
+    
+    # ============================================
+    # WEATHER API (Free, no key needed)
+    # ============================================
+    
+    def get_weather(self, city):
+        """
+        Get weather using wttr.in (free, no API key)
+        """
+        if not self.weather_enabled:
+            return None
+        
+        try:
+            # Clean city name
+            city_clean = city.strip().replace(' ', '+')
+            response = requests.get(
+                f'https://wttr.in/{city_clean}?format=%l:+%c+%t+%w+%h',
+                timeout=10,
+                headers={'User-Agent': 'TerminatorAI/1.0'}
+            )
+            
+            if response.status_code == 200:
+                weather_text = response.text.strip()
+                if 'error' not in weather_text.lower() and weather_text:
+                    self.stats['api_usage']['weather'] += 1
+                    return f"🌤️ **Weather:** {weather_text}"
+            
+            return None
+        except:
+            return None
+    
+    # ============================================
+    # MAIN SEARCH FUNCTION (Combines all APIs)
+    # ============================================
     
     def search_web(self, query):
         """
-        Search the web for current information
-        Returns formatted search results as string
+        Search using multiple APIs in priority order:
+        1. Tavily (best quality, limited credits)
+        2. Qdrant (stored knowledge)
+        3. Weather (if weather-related)
+        4. Fallback (DuckDuckGo)
         """
         if not self.internet_enabled:
             return "Internet access is disabled. Enable it with '/internet on'"
         
-        # Try API search first
-        if self.search_api_key:
-            try:
-                response = requests.post(
-                    self.search_api_url,
-                    headers={
-                        'x-api-key': self.search_api_key,
-                        'Content-Type': 'application/json'
-                    },
-                    json={'query': query, 'country_code': 'us'},
-                    timeout=10
-                )
-                
-                if response.status_code == 200:
-                    results = response.json().get('organic_results', [])[:5]
-                    if results:
-                        formatted = []
-                        for r in results:
-                            formatted.append(
-                                f"📌 {r.get('title', 'No title')}\n"
-                                f"📝 {r.get('snippet', 'No description')}\n"
-                                f"🔗 Source: {r.get('link', 'No link')}\n"
-                            )
-                        return '\n'.join(formatted)
-                    else:
-                        return "No search results found. Try a different query."
-                else:
-                    return f"Search API error: {response.status_code}. Using fallback search..."
-            except Exception as e:
-                return f"Search failed: {str(e)}. Using fallback search..."
+        # ---- TRY 1: TAVILY API ----
+        if self.api_status['tavily']:
+            result = self.search_tavily(query)
+            if result and "error" not in result.lower() and "No results" not in result:
+                return result
         
-        # Fallback: Use a different approach
+        # ---- TRY 2: QDRANT ----
+        if self.api_status['qdrant']:
+            result = self.search_qdrant(query)
+            if result and "failed" not in result.lower():
+                return result
+        
+        # ---- TRY 3: WEATHER (if weather-related) ----
+        if 'weather' in query.lower() or 'temperature' in query.lower():
+            import re
+            city_match = re.search(r'weather in ([a-zA-Z\s]+?)(?:[?]|$)', query.lower())
+            if city_match:
+                city = city_match.group(1).strip()
+                weather = self.get_weather(city)
+                if weather:
+                    return weather + "\n\n💡 Weather data from wttr.in"
+        
+        # ---- TRY 4: FALLBACK SEARCH ----
         return self._fallback_search(query)
     
     def _fallback_search(self, query):
         """
-        Fallback search using DuckDuckGo HTML (no API key required)
-        This is a simpler approach that actually works
+        Fallback search using DuckDuckGo
         """
         try:
-            # Use DuckDuckGo's HTML interface
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
+                'DNT': '1'
             }
             
             response = requests.get(
                 'https://html.duckduckgo.com/html/',
                 params={'q': query},
                 headers=headers,
-                timeout=10
+                timeout=15
             )
             
             if response.status_code == 200:
-                # Extract results using regex (simpler than BeautifulSoup)
                 results = []
-                
-                # Find result titles and URLs using regex
                 title_pattern = r'<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)</a>'
-                snippet_pattern = r'<a[^>]*class="result__snippet"[^>]*>(.*?)</a>'
-                
-                # Try to find titles
                 titles = re.findall(title_pattern, response.text, re.DOTALL)
                 
-                # Clean up titles (remove HTML tags)
                 for url, title in titles[:3]:
-                    # Clean the title
                     clean_title = re.sub(r'<[^>]+>', '', title).strip()
                     if clean_title and '...' not in clean_title:
                         results.append(f"📌 {clean_title}\n🔗 {url}")
                 
-                # If no results with regex, try a simpler approach
-                if not results:
-                    # Look for any links that look like search results
-                    link_pattern = r'<a[^>]*href="([^"]*)"[^>]*>([^<]*)</a>'
-                    all_links = re.findall(link_pattern, response.text)
-                    
-                    for url, text in all_links[:5]:
-                        if 'duckduckgo.com' not in url and text and len(text) > 10:
-                            if 'http' in url or url.startswith('/'):
-                                results.append(f"📌 {text.strip()}\n🔗 {url}")
-                
-                if results:
-                    return '\n\n'.join(results[:3])
-                
-                # If still no results, try another approach
-                return self._fallback_search_alternative(query)
-            else:
-                return f"Fallback search failed with status: {response.status_code}"
-        except Exception as e:
-            return f"Fallback search error: {str(e)}"
-    
-    def _fallback_search_alternative(self, query):
-        """
-        Another fallback approach using a different search endpoint
-        """
-        try:
-            # Try using a different DuckDuckGo endpoint
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-            
-            # Use the lite version with different parameters
-            response = requests.get(
-                'https://lite.duckduckgo.com/lite/',
-                params={'q': query, 'o': 'json'},
-                headers=headers,
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                # Look for result links
-                results = []
-                lines = response.text.split('\n')
-                
-                for line in lines:
-                    if 'href="' in line and 'result' in line.lower():
-                        # Try to extract a result
-                        link_match = re.search(r'href="([^"]*)"', line)
-                        text_match = re.search(r'>([^<]*)</a>', line)
-                        
-                        if link_match and text_match:
-                            link = link_match.group(1)
-                            text = text_match.group(1).strip()
-                            if text and len(text) > 5 and 'duckduckgo' not in link:
-                                results.append(f"📌 {text}\n🔗 {link}")
-                
                 if results:
                     return '\n\n'.join(results[:3])
             
-            # If everything fails, return a helpful message
             return self._get_fallback_response(query)
             
         except Exception as e:
             return self._get_fallback_response(query)
     
     def _get_fallback_response(self, query):
-        """
-        Return a helpful response when search fails
-        """
+        """Return helpful message when all search fails"""
         responses = [
-            f"I couldn't search for '{query}' right now. The search service is temporarily unavailable.",
-            f"I had trouble searching for '{query}'. Please try again later or try a different query.",
-            f"Search is currently not working for '{query}'. You can try asking me something else, or check your internet connection.",
-            f"I can't access search results for '{query}' at the moment. Try using the 'scrape' command with a specific URL instead."
+            f"I couldn't search for '{query}'. The search services are temporarily unavailable.\n\n💡 **Try:**\n• Use 'scrape [URL]' for specific websites\n• Ask about math, plotting, or general questions\n• Try again later",
+            
+            f"Search is currently unavailable. Please try a different approach or ask me something else!",
+            
+            f"I'm having trouble connecting to search services. You can still ask me math questions, plot graphs, or chat with me!"
         ]
         return random.choice(responses)
     
     def get_grounded_response(self, question, search_results):
-        """
-        Generate a response grounded in search results
-        """
-        if not search_results:
-            return f"🌐 I couldn't find any information on '{question}'. Please try a different search term!"
+        """Format search results"""
+        if not search_results or "couldn't search" in search_results.lower():
+            return f"🌐 I couldn't find information on '{question}'. Please try a different search term!"
         
-        if "couldn't search" in search_results.lower() or "unavailable" in search_results.lower() or "not working" in search_results.lower():
-            return f"🔍 {search_results}\n\n💡 You can also try using 'scrape [URL]' to get information from a specific website."
-        
-        if "No search results" in search_results:
-            return f"🔍 No search results found for '{question}'. Try being more specific or using different keywords."
-        
-        return f"🔍 **Search Results for: '{question}'**\n\n{search_results}\n\n💡 Based on these results, you can ask me specific questions about them!"
+        return f"🔍 **Search Results for: '{question}'**\n\n{search_results}\n\n💡 You can ask me specific questions about these results!"
     
     def scrape_website(self, url):
         """
         Scrape a website for content
         """
         try:
-            # First check if beautifulsoup is installed
+            # Check for beautifulsoup
             try:
                 from bs4 import BeautifulSoup
             except ImportError:
-                return "BeautifulSoup not installed. Install with: pip install beautifulsoup4\n\nThen try again."
+                return "BeautifulSoup not installed. Install with: pip install beautifulsoup4"
             
             response = requests.get(
                 url, 
@@ -275,7 +398,7 @@ class Utils:
         return "💡 " + random.choice(quotes)
     
     def simulate_weather(self):
-        """Simulate weather for different cities"""
+        """Simulate weather for different cities (fallback)"""
         cities = ["Berlin", "Munich", "Hamburg", "Cologne", "Frankfurt", "London", "Paris", "Vienna"]
         weather = ["sunny ☀️", "partly cloudy ⛅", "cloudy ☁️", "rainy 🌧️", "windy 💨", "snowy ❄️"]
         temps = [5, 10, 12, 15, 18, 20, 22, 25, 28, 30]
@@ -302,4 +425,4 @@ class Utils:
             self.internet_enabled = False
             return "🚫 Internet access disabled. I'll only use my training data."
         else:
-            return f"🌐 Internet access: {'Enabled' if self.internet_enabled else 'Disabled'}\n🔑 API Key: {'Set' if self.search_api_key else 'Not set'}"
+            return f"🌐 Internet access: {'Enabled' if self.internet_enabled else 'Disabled'}\n🔑 API Keys: Tavily: {'Set ✅' if self.tavily_api_key else 'Not set ❌'} | Qdrant: {'Set ✅' if self.qdrant_api_key else 'Not set ❌'}"
