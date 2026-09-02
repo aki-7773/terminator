@@ -6,22 +6,24 @@ Handles all chat interactions and response routing
 import random
 import json
 import os
+import re
 from datetime import datetime
 from math_ops import MathOperations
 from graphics import GraphicsHandler
 from utils import Utils
 
-# Try to import turtle drawer, but make it optional
+# Make turtle optional
 try:
     from draw_turtle import TurtleDrawer
-except ImportError:
-    # If turtle can't be imported, use a dummy class
+    TURTLE_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    TURTLE_AVAILABLE = False
     class TurtleDrawer:
         def __init__(self):
             self.turtle_available = False
             self.turtle_ready = False
         def draw(self, user_input):
-            return "Turtle drawing is not available in this environment. Try using 'plot' instead!"
+            return "🎨 Turtle drawing is not available in this environment (requires GUI). Try using 'plot' or 'graph' commands instead!"
 
 class PeakAI:
     """Main AI Assistant with conversation capabilities"""
@@ -45,18 +47,8 @@ class PeakAI:
         # Initialize sub-modules
         self.math = MathOperations()
         self.graphics = GraphicsHandler()
-        try:
-            self.drawer = TurtleDrawer()
-        except:
-            # Fallback if TurtleDrawer can't be initialized
-            class DummyDrawer:
-                def draw(self, user_input):
-                    return "Turtle drawing requires a GUI environment. Not available on Render."
-                turtle_available = False
-                turtle_ready = False
-            self.drawer = DummyDrawer()
+        self.drawer = TurtleDrawer()
         self.utils = Utils()
-    
         
     def greet(self):
         """Generate personalized greeting"""
@@ -88,7 +80,7 @@ class PeakAI:
         """Analyze input and route to appropriate handler"""
         lower_input = user_input.lower()
         
-        # --- INTERNET COMMANDS - CHECK FIRST BEFORE SYSTEM COMMANDS ---
+        # --- INTERNET COMMANDS - CHECK FIRST ---
         if lower_input.startswith('/internet'):
             return self.handle_internet_command(user_input)
         
@@ -119,9 +111,22 @@ class PeakAI:
             url = parts[1].strip()
             return self.utils.scrape_website(url)
         
-        # Check if user is asking about recent/current events
+        # --- WEATHER DETECTION (NEW) ---
+        if "weather" in lower_input or "temperature" in lower_input:
+            # Try to extract city
+            city_match = re.search(r'weather in ([a-zA-Z\s]+?)(?:[?]|$)', lower_input)
+            if city_match:
+                city = city_match.group(1).strip()
+                weather = self.utils.get_weather(city)
+                if weather:
+                    return weather
+            # Fallback to search
+            self.stats['web_searches'] += 1
+            results = self.utils.search_web(user_input)
+            return self.utils.get_grounded_response(user_input, results)
+        
+        # Check if user is asking about recent/current events (auto-search)
         if any(word in lower_input for word in ['current', 'recent', 'today', 'latest', 'news', 'update', 'what is']):
-            # Only trigger search if it looks like a question
             if '?' in user_input or any(word in lower_input for word in ['what', 'who', 'when', 'where', 'why', 'how']):
                 self.stats['web_searches'] += 1
                 results = self.utils.search_web(user_input)
@@ -250,7 +255,6 @@ class PeakAI:
         """Handle internet-related commands"""
         cmd = command.lower().strip()
         
-        # Handle different internet commands
         if cmd == '/internet on':
             return self.utils.toggle_internet('on')
         elif cmd == '/internet off':
@@ -258,7 +262,6 @@ class PeakAI:
         elif cmd == '/internet status':
             return self.utils.toggle_internet('status')
         elif cmd == '/internet':
-            # If someone types just /internet, show status
             return self.utils.toggle_internet('status')
         else:
             return "Commands: /internet on, /internet off, /internet status"
@@ -285,18 +288,21 @@ class PeakAI:
     
     def show_stats(self):
         """Show usage statistics"""
+        api_usage = self.utils.stats.get('api_usage', {})
         return f"""📊 Peak AI Statistics:
 • Math problems solved: {self.stats['math_problems_solved']}
 • Jokes told: {self.stats['jokes_told']}
 • Graphs drawn: {self.stats['graphs_drawn']}
 • Conversations: {self.stats['conversations']}
 • Web searches: {self.stats['web_searches']}
+• API usage: Tavily: {api_usage.get('tavily', 0)} | Qdrant: {api_usage.get('qdrant', 0)} | Weather: {api_usage.get('weather', 0)}
 • User: {self.user_name or 'Not set'}"""
     
     def show_status(self):
         """Show detailed status"""
         internet_status = 'Enabled ✅' if self.utils.internet_enabled else 'Disabled ❌'
-        api_status = 'Set ✅' if self.utils.search_api_key else 'Not set ❌'
+        tavily_status = 'Set ✅' if self.utils.tavily_api_key else 'Not set ❌'
+        qdrant_status = 'Set ✅' if self.utils.qdrant_api_key else 'Not set ❌'
         
         return f"""
 ⚡ **Peak AI Status** ⚡
@@ -308,7 +314,8 @@ class PeakAI:
 • Memory: {len(self.memory)} items
 • Conversations: {len(self.conversation_history)} messages
 • Internet: {internet_status}
-• Search API: {api_status}
+• Tavily API: {tavily_status}
+• Qdrant API: {qdrant_status}
 
 📈 **Statistics:**
 • Math Problems: {self.stats['math_problems_solved']}
@@ -327,7 +334,7 @@ class PeakAI:
 **🌐 Internet Features:**
 • "search [query]" - Search the web
 • "scrape [URL]" - Extract content from a website
-• "what is the latest [topic]" - Get current info
+• "what is the weather in [city]" - Get current weather
 • "/internet on/off/status" - Control internet access
 
 **🎯 Commands:**
@@ -424,6 +431,7 @@ Type naturally or use these commands! 🚀
         print("💡 Type 'bye' to exit.")
         print("💡 Type '/status' for stats.")
         print("💡 Type 'search [query]' to search the web!")
+        print("💡 Type 'weather in [city]' for weather!")
         print("💡 Type '/internet status' to check internet access")
         print("\n" + "=" * 80)
         
