@@ -3,16 +3,16 @@
 Peak AI - Web Application with Multi-Chat Support
 """
 
+# --- CRITICAL: Set Matplotlib backend BEFORE importing anything else ---
+import matplotlib
+matplotlib.use('Agg')
+
 from flask import Flask, render_template, request, jsonify, abort
 from chat import PeakAI
 import os
 import json
 import uuid
 from datetime import datetime
-
-# Set Matplotlib to Agg backend for headless servers
-import matplotlib
-matplotlib.use('Agg')
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-for-terminator')
@@ -29,7 +29,6 @@ def load_chats():
         # Recreate AI instances for each chat
         for chat_id, chat_data in data.items():
             ai = PeakAI(chat_data.get('name', 'Terminator AI'))
-            # Restore conversation history if stored
             if 'history' in chat_data:
                 ai.conversation_history = chat_data['history']
             chat_data['ai'] = ai
@@ -79,7 +78,6 @@ def list_chats():
         history = chat_data['ai'].conversation_history
         preview = ''
         if history:
-            # Get last user message
             for msg in reversed(history):
                 if msg.startswith('You:'):
                     preview = msg[5:][:50] + ('...' if len(msg) > 55 else '')
@@ -139,21 +137,26 @@ def delete_chat(chat_id):
 def send_message(chat_id):
     """Send a message to a specific chat and get AI response."""
     if chat_id not in chats:
-        abort(404)
+        return jsonify({'error': 'Chat not found'}), 404
     
     data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid request'}), 400
+    
     user_message = data.get('message', '').strip()
     if not user_message:
         return jsonify({'error': 'Empty message'}), 400
     
-    ai = chats[chat_id]['ai']
-    response = ai.process_input(user_message)
-    # After processing, history is updated inside ai
-    save_chats()  # persist
-    return jsonify({
-        'response': response,
-        'history': ai.conversation_history
-    })
+    try:
+        ai = chats[chat_id]['ai']
+        response = ai.process_input(user_message)
+        save_chats()  # persist
+        return jsonify({
+            'response': response,
+            'history': ai.conversation_history
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/chat/<chat_id>/rename', methods=['POST'])
 def rename_chat(chat_id):
@@ -170,13 +173,10 @@ def rename_chat(chat_id):
 
 @app.route('/reset', methods=['POST'])
 def reset_conversation():
-    """Reset ALL chats (dangerous, but we keep for admin)."""
-    # We'll just reset the current chat? Not used in UI.
     return jsonify({'error': 'Use per-chat reset if needed'}), 400
 
 @app.route('/status', methods=['GET'])
 def status():
-    """Health check."""
     return jsonify({
         'name': 'Terminator AI',
         'version': '3.0',
@@ -184,6 +184,9 @@ def status():
         'status': 'success'
     })
 
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
