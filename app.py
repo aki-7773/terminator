@@ -3,7 +3,6 @@
 Peak AI - Web Application with Multi-Chat Support
 """
 
-# --- CRITICAL: Set Matplotlib backend BEFORE importing anything else ---
 import matplotlib
 matplotlib.use('Agg')
 
@@ -22,11 +21,9 @@ CHATS_FILE = 'chats_data.json'
 MAX_CHATS = 5
 
 def load_chats():
-    """Load chat data from JSON file, or create default if missing."""
     if os.path.exists(CHATS_FILE):
         with open(CHATS_FILE, 'r') as f:
             data = json.load(f)
-        # Recreate AI instances for each chat
         for chat_id, chat_data in data.items():
             ai = PeakAI(chat_data.get('name', 'Terminator AI'))
             if 'history' in chat_data:
@@ -34,7 +31,6 @@ def load_chats():
             chat_data['ai'] = ai
         return data
     else:
-        # Create a default chat
         default_id = str(uuid.uuid4())
         ai = PeakAI("Terminator AI")
         return {
@@ -48,7 +44,6 @@ def load_chats():
         }
 
 def save_chats():
-    """Save chat data to JSON file (excluding AI instances)."""
     data = {}
     for chat_id, chat_data in chats.items():
         data[chat_id] = {
@@ -60,19 +55,16 @@ def save_chats():
     with open(CHATS_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
-# Load chats on startup
 chats = load_chats()
 
 # ---------- Routes ----------
 
 @app.route('/')
 def index():
-    """Render main chat interface."""
     return render_template('index.html')
 
 @app.route('/chats', methods=['GET'])
 def list_chats():
-    """Return list of all chats (id, name, preview)."""
     result = []
     for chat_id, chat_data in chats.items():
         history = chat_data['ai'].conversation_history
@@ -92,7 +84,6 @@ def list_chats():
 
 @app.route('/chat/<chat_id>', methods=['GET'])
 def get_chat(chat_id):
-    """Return full conversation history for a chat."""
     if chat_id not in chats:
         abort(404)
     history = chats[chat_id]['ai'].conversation_history
@@ -101,11 +92,22 @@ def get_chat(chat_id):
 @app.route('/chat/new', methods=['POST'])
 def new_chat():
     """Create a new chat (if under max)."""
+    # Log the request for debugging
+    print(f"New chat request: {request.data}")  # This will appear in Render logs
+
     if len(chats) >= MAX_CHATS:
         return jsonify({'error': f'Maximum {MAX_CHATS} chats allowed'}), 400
     
-    data = request.get_json() or {}
-    name = data.get('name', f'Chat {len(chats)+1}')
+    # Parse JSON body
+    data = request.get_json()
+    if data is None:
+        # If no JSON, try form data or use default
+        data = request.form.to_dict()
+    
+    name = data.get('name', '').strip()
+    if not name:
+        name = f'Chat {len(chats)+1}'
+    
     chat_id = str(uuid.uuid4())
     ai = PeakAI("Terminator AI")
     chats[chat_id] = {
@@ -116,6 +118,7 @@ def new_chat():
         'created_at': datetime.now().isoformat()
     }
     save_chats()
+    
     return jsonify({
         'id': chat_id,
         'name': name,
@@ -124,7 +127,6 @@ def new_chat():
 
 @app.route('/chat/<chat_id>/delete', methods=['DELETE'])
 def delete_chat(chat_id):
-    """Delete a chat (only if more than 1)."""
     if len(chats) <= 1:
         return jsonify({'error': 'Cannot delete the last chat'}), 400
     if chat_id not in chats:
@@ -135,7 +137,6 @@ def delete_chat(chat_id):
 
 @app.route('/chat/<chat_id>/send', methods=['POST'])
 def send_message(chat_id):
-    """Send a message to a specific chat and get AI response."""
     if chat_id not in chats:
         return jsonify({'error': 'Chat not found'}), 404
     
@@ -150,7 +151,7 @@ def send_message(chat_id):
     try:
         ai = chats[chat_id]['ai']
         response = ai.process_input(user_message)
-        save_chats()  # persist
+        save_chats()
         return jsonify({
             'response': response,
             'history': ai.conversation_history
@@ -160,7 +161,6 @@ def send_message(chat_id):
 
 @app.route('/chat/<chat_id>/rename', methods=['POST'])
 def rename_chat(chat_id):
-    """Rename a chat."""
     if chat_id not in chats:
         abort(404)
     data = request.get_json()
@@ -184,9 +184,6 @@ def status():
         'status': 'success'
     })
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
