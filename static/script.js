@@ -57,7 +57,9 @@ async function createNewChat(name) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
         });
-        return await res.json();
+        const data = await res.json();
+        console.log('Create new chat response:', data);
+        return data;
     } catch (e) {
         console.error('Create chat error:', e);
         return { error: e.message };
@@ -269,10 +271,16 @@ async function refreshChatList() {
 }
 
 async function createNewChat() {
+    console.log('Create new chat button clicked');
     const name = prompt('Enter chat name:', `Chat ${chatList.length + 1}`);
-    if (!name) return;
+    if (!name) {
+        console.log('User cancelled');
+        return;
+    }
+    console.log('Creating chat with name:', name);
     const data = await createNewChat(name);
     if (data.id) {
+        console.log('Chat created with ID:', data.id);
         await refreshChatList();
         await switchChat(data.id);
     } else {
@@ -320,8 +328,11 @@ userInput.addEventListener('keydown', function(e) {
 });
 
 // ---------- Event Listeners ----------
+console.log('Attaching event listeners...');
 sendButton.addEventListener('click', sendMessage);
+console.log('Send button listener attached');
 newChatBtn.addEventListener('click', createNewChat);
+console.log('New chat button listener attached');
 deleteChatBtn.addEventListener('click', deleteCurrentChat);
 renameChatBtn.addEventListener('click', renameCurrentChat);
 
