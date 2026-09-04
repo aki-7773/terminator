@@ -1,9 +1,4 @@
-// ---------- State ----------
-let currentChatId = null;
-let chatList = [];
-let chatHistory = [];
-
-// DOM Elements
+// ---------- DOM Elements ----------
 const chatListEl = document.getElementById('chatList');
 const chatMessages = document.getElementById('chatMessages');
 const userInput = document.getElementById('userInput');
@@ -15,47 +10,82 @@ const deleteChatBtn = document.getElementById('deleteChatBtn');
 const renameChatBtn = document.getElementById('renameChatBtn');
 const statusText = document.getElementById('statusText');
 
+// ---------- State ----------
+let currentChatId = null;
+let chatList = [];
+let chatHistory = [];
+
 // ---------- Fetch Helpers ----------
 async function fetchChats() {
-    const res = await fetch('/chats');
-    return res.json();
+    try {
+        const res = await fetch('/chats');
+        return await res.json();
+    } catch (e) {
+        console.error('Fetch chats error:', e);
+        return [];
+    }
 }
 
 async function fetchChatHistory(chatId) {
-    const res = await fetch(`/chat/${chatId}`);
-    return res.json();
+    try {
+        const res = await fetch(`/chat/${chatId}`);
+        return await res.json();
+    } catch (e) {
+        console.error('Fetch history error:', e);
+        return { history: [] };
+    }
 }
 
 async function sendMessageToChat(chatId, message) {
-    const res = await fetch(`/chat/${chatId}/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message })
-    });
-    return res.json();
+    try {
+        const res = await fetch(`/chat/${chatId}/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Send message error:', e);
+        return { error: e.message };
+    }
 }
 
 async function createNewChat(name) {
-    const res = await fetch('/chat/new', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-    });
-    return res.json();
+    try {
+        const res = await fetch('/chat/new', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Create chat error:', e);
+        return { error: e.message };
+    }
 }
 
 async function deleteChat(chatId) {
-    const res = await fetch(`/chat/${chatId}/delete`, { method: 'DELETE' });
-    return res.json();
+    try {
+        const res = await fetch(`/chat/${chatId}/delete`, { method: 'DELETE' });
+        return await res.json();
+    } catch (e) {
+        console.error('Delete chat error:', e);
+        return { error: e.message };
+    }
 }
 
 async function renameChat(chatId, newName) {
-    const res = await fetch(`/chat/${chatId}/rename`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName })
-    });
-    return res.json();
+    try {
+        const res = await fetch(`/chat/${chatId}/rename`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName })
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Rename chat error:', e);
+        return { error: e.message };
+    }
 }
 
 // ---------- Render Functions ----------
@@ -75,14 +105,14 @@ function renderChatList(chats) {
         item.addEventListener('click', () => switchChat(chat.id));
         chatListEl.appendChild(item);
     });
-    // Update new chat button
-    newChatBtn.disabled = chats.length >= 5;
+    if (newChatBtn) {
+        newChatBtn.disabled = chats.length >= 5;
+    }
 }
 
 function renderMessages(history) {
     chatMessages.innerHTML = '';
     if (!history || history.length === 0) {
-        // Show welcome message
         const welcome = document.createElement('div');
         welcome.className = 'message ai-message';
         welcome.innerHTML = `
@@ -94,7 +124,7 @@ function renderMessages(history) {
                 <div class="message-text">
                     Hello! I'm Terminator AI, the ultimate assistant. I can do math, draw, search the web, analyze data, and chat! 🚀
                     <br><br>
-                    Try asking me something or type <strong>help</strong> to see what I can do!
+                    Try asking me something!
                 </div>
             </div>
         `;
@@ -126,7 +156,6 @@ function renderMessages(history) {
 }
 
 function formatMessage(text) {
-    // Basic formatting
     let html = text;
     html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
     html = html.replace(/`([^`]*)`/g, '<code>$1</code>');
@@ -137,27 +166,28 @@ function formatMessage(text) {
 
 function scrollToBottom() {
     const container = document.getElementById('chatContainer');
-    container.scrollTop = container.scrollHeight;
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+    }
 }
 
 // ---------- Chat Switching ----------
 async function switchChat(chatId) {
     if (chatId === currentChatId) return;
-    // Save current chat state if needed (already saved on server)
     currentChatId = chatId;
-    // Update UI
+    
     const chat = chatList.find(c => c.id === chatId);
     if (chat) {
         chatNameEl.textContent = chat.name;
     }
-    // Load history
+    
     const data = await fetchChatHistory(chatId);
     chatHistory = data.history || [];
     renderMessages(chatHistory);
-    // Highlight sidebar item
+    
     document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
     document.querySelector(`.chat-item[data-chat-id="${chatId}"]`)?.classList.add('active');
-    // Focus input
+    
     userInput.focus();
 }
 
@@ -166,7 +196,7 @@ async function sendMessage() {
     const message = userInput.value.trim();
     if (!message || !currentChatId) return;
 
-    // Add user message to UI immediately
+    // Add user message
     const userMsg = document.createElement('div');
     userMsg.className = 'message user-message';
     userMsg.innerHTML = `
@@ -183,19 +213,17 @@ async function sendMessage() {
     scrollToBottom();
 
     // Show typing
-    showTyping(true);
+    typingIndicator.style.display = 'flex';
 
     try {
         const data = await sendMessageToChat(currentChatId, message);
-        showTyping(false);
+        typingIndicator.style.display = 'none';
+        
         if (data.response) {
-            // Update history and render
             chatHistory = data.history || [];
             renderMessages(chatHistory);
-            // Update chat list previews
-            await refreshChatList();
+            refreshChatList();
         } else {
-            // Error
             const errMsg = document.createElement('div');
             errMsg.className = 'message ai-message';
             errMsg.innerHTML = `
@@ -211,7 +239,7 @@ async function sendMessage() {
             scrollToBottom();
         }
     } catch (e) {
-        showTyping(false);
+        typingIndicator.style.display = 'none';
         const errMsg = document.createElement('div');
         errMsg.className = 'message ai-message';
         errMsg.innerHTML = `
@@ -228,10 +256,6 @@ async function sendMessage() {
     }
 }
 
-function showTyping(show) {
-    typingIndicator.style.display = show ? 'flex' : 'none';
-}
-
 // ---------- Quick Actions ----------
 function quickSend(text) {
     userInput.value = text;
@@ -242,14 +266,6 @@ function quickSend(text) {
 async function refreshChatList() {
     chatList = await fetchChats();
     renderChatList(chatList);
-    // If current chat not in list (deleted), switch to first
-    if (currentChatId && !chatList.find(c => c.id === currentChatId)) {
-        if (chatList.length > 0) {
-            await switchChat(chatList[0].id);
-        } else {
-            // Should not happen
-        }
-    }
 }
 
 async function createNewChat() {
@@ -274,7 +290,6 @@ async function deleteCurrentChat() {
     const result = await deleteChat(currentChatId);
     if (result.status === 'deleted') {
         await refreshChatList();
-        // Switch to first available chat
         if (chatList.length > 0) {
             await switchChat(chatList[0].id);
         }
@@ -296,7 +311,7 @@ async function renameCurrentChat() {
     }
 }
 
-// ---------- Keyboard shortcuts ----------
+// ---------- Keyboard Shortcut ----------
 userInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -304,19 +319,43 @@ userInput.addEventListener('keydown', function(e) {
     }
 });
 
-// ---------- Init ----------
-async function init() {
-    // Load chats
-    chatList = await fetchChats();
-    if (chatList.length === 0) {
-        // Create default
-        await createNewChat('Chat 1');
-        chatList = await fetchChats();
+// ---------- Event Listeners ----------
+sendButton.addEventListener('click', sendMessage);
+newChatBtn.addEventListener('click', createNewChat);
+deleteChatBtn.addEventListener('click', deleteCurrentChat);
+renameChatBtn.addEventListener('click', renameCurrentChat);
+
+// ---------- Check Static Files ----------
+async function checkStaticFile() {
+    try {
+        const res = await fetch('/static/style.css');
+        if (!res.ok) {
+            console.warn('Static files may not be served correctly.');
+        }
+    } catch (e) {
+        console.warn('Static file check failed:', e);
     }
+}
+
+// ---------- Initialization ----------
+async function init() {
+    console.log('Initializing Terminator AI...');
+    await checkStaticFile();
+    chatList = await fetchChats();
+    console.log('Chats loaded:', chatList);
+    
+    if (chatList.length === 0) {
+        console.log('No chats found, creating default...');
+        const newChat = await createNewChat('Chat 1');
+        if (newChat.id) {
+            chatList = await fetchChats();
+        }
+    }
+    
     renderChatList(chatList);
-    // Set first chat as active
-    const first = chatList[0];
-    if (first) {
+    
+    if (chatList.length > 0) {
+        const first = chatList[0];
         currentChatId = first.id;
         chatNameEl.textContent = first.name;
         const data = await fetchChatHistory(first.id);
@@ -324,33 +363,14 @@ async function init() {
         renderMessages(chatHistory);
         document.querySelector(`.chat-item[data-chat-id="${first.id}"]`)?.classList.add('active');
     }
+    
     userInput.focus();
-
-    // Event listeners
-    newChatBtn.addEventListener('click', createNewChat);
-    deleteChatBtn.addEventListener('click', deleteCurrentChat);
-    renameChatBtn.addEventListener('click', renameCurrentChat);
-    sendButton.addEventListener('click', sendMessage);
-
-    // Check status periodically
-    setInterval(async () => {
-        try {
-            const res = await fetch('/status');
-            if (res.ok) {
-                statusText.textContent = 'Online';
-                document.querySelector('.status-indicator .dot').className = 'dot online';
-            } else {
-                statusText.textContent = 'Offline';
-                document.querySelector('.status-indicator .dot').className = 'dot offline';
-            }
-        } catch {
-            statusText.textContent = 'Offline';
-            document.querySelector('.status-indicator .dot').className = 'dot offline';
-        }
-    }, 30000);
+    console.log('Initialization complete!');
 }
 
-init();
-        }
-    }
+// Start when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
 }
