@@ -250,7 +250,6 @@ async function sendMessage() {
             renderMessages(chatHistory);
             refreshChatList();
         } else {
-            // Fallback
             const errMsg = document.createElement('div');
             errMsg.className = 'message ai-message';
             errMsg.innerHTML = `
@@ -297,8 +296,15 @@ async function refreshChatList() {
 
 async function createNewChat() {
     const name = prompt('Enter chat name:', `Chat ${chatList.length + 1}`);
-    if (!name) return;
-    const data = await createNewChat(name);
+    if (name === null) return; // user cancelled
+    
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+        alert('Chat name cannot be empty.');
+        return;
+    }
+    
+    const data = await createNewChat(trimmedName);
     if (data.error) {
         alert('Error: ' + data.error);
     } else if (data.id) {
@@ -332,8 +338,10 @@ async function deleteCurrentChat() {
 async function renameCurrentChat() {
     if (!currentChatId) return;
     const newName = prompt('Enter new chat name:', chatNameEl.textContent);
-    if (!newName || newName === chatNameEl.textContent) return;
-    const result = await renameChat(currentChatId, newName);
+    if (newName === null) return;
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === chatNameEl.textContent) return;
+    const result = await renameChat(currentChatId, trimmed);
     if (result.error) {
         alert('Error: ' + result.error);
     } else if (result.name) {
