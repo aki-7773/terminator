@@ -19,6 +19,7 @@ let chatHistory = [];
 async function fetchChats() {
     try {
         const res = await fetch('/chats');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.json();
     } catch (e) {
         console.error('Fetch chats error:', e);
@@ -29,6 +30,7 @@ async function fetchChats() {
 async function fetchChatHistory(chatId) {
     try {
         const res = await fetch(`/chat/${chatId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.json();
     } catch (e) {
         console.error('Fetch history error:', e);
@@ -43,6 +45,10 @@ async function sendMessageToChat(chatId, message) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message })
         });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Server error ${res.status}: ${text.substring(0, 100)}`);
+        }
         return await res.json();
     } catch (e) {
         console.error('Send message error:', e);
@@ -57,9 +63,11 @@ async function createNewChat(name) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
         });
-        const data = await res.json();
-        console.log('Create new chat response:', data);
-        return data;
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Server error ${res.status}: ${text.substring(0, 100)}`);
+        }
+        return await res.json();
     } catch (e) {
         console.error('Create chat error:', e);
         return { error: e.message };
@@ -69,6 +77,7 @@ async function createNewChat(name) {
 async function deleteChat(chatId) {
     try {
         const res = await fetch(`/chat/${chatId}/delete`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.json();
     } catch (e) {
         console.error('Delete chat error:', e);
@@ -83,6 +92,7 @@ async function renameChat(chatId, newName) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: newName })
         });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.json();
     } catch (e) {
         console.error('Rename chat error:', e);
@@ -221,11 +231,7 @@ async function sendMessage() {
         const data = await sendMessageToChat(currentChatId, message);
         typingIndicator.style.display = 'none';
         
-        if (data.response) {
-            chatHistory = data.history || [];
-            renderMessages(chatHistory);
-            refreshChatList();
-        } else {
+        if (data.error) {
             const errMsg = document.createElement('div');
             errMsg.className = 'message ai-message';
             errMsg.innerHTML = `
@@ -234,7 +240,26 @@ async function sendMessage() {
                         <span class="message-avatar">🤖</span>
                         <span class="message-sender">Terminator AI</span>
                     </div>
-                    <div class="message-text">Error: ${data.error || 'Something went wrong'}</div>
+                    <div class="message-text">⚠️ Error: ${data.error}</div>
+                </div>
+            `;
+            chatMessages.appendChild(errMsg);
+            scrollToBottom();
+        } else if (data.response) {
+            chatHistory = data.history || [];
+            renderMessages(chatHistory);
+            refreshChatList();
+        } else {
+            // Fallback
+            const errMsg = document.createElement('div');
+            errMsg.className = 'message ai-message';
+            errMsg.innerHTML = `
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-avatar">🤖</span>
+                        <span class="message-sender">Terminator AI</span>
+                    </div>
+                    <div class="message-text">⚠️ No response from server.</div>
                 </div>
             `;
             chatMessages.appendChild(errMsg);
@@ -250,7 +275,7 @@ async function sendMessage() {
                     <span class="message-avatar">🤖</span>
                     <span class="message-sender">Terminator AI</span>
                 </div>
-                <div class="message-text">Connection error: ${e.message}</div>
+                <div class="message-text">⚠️ Connection error: ${e.message}</div>
             </div>
         `;
         chatMessages.appendChild(errMsg);
@@ -271,20 +296,16 @@ async function refreshChatList() {
 }
 
 async function createNewChat() {
-    console.log('Create new chat button clicked');
     const name = prompt('Enter chat name:', `Chat ${chatList.length + 1}`);
-    if (!name) {
-        console.log('User cancelled');
-        return;
-    }
-    console.log('Creating chat with name:', name);
+    if (!name) return;
     const data = await createNewChat(name);
-    if (data.id) {
-        console.log('Chat created with ID:', data.id);
+    if (data.error) {
+        alert('Error: ' + data.error);
+    } else if (data.id) {
         await refreshChatList();
         await switchChat(data.id);
     } else {
-        alert(data.error || 'Failed to create chat');
+        alert('Failed to create chat');
     }
 }
 
@@ -296,13 +317,15 @@ async function deleteCurrentChat() {
     }
     if (!confirm(`Delete "${chatNameEl.textContent}"?`)) return;
     const result = await deleteChat(currentChatId);
-    if (result.status === 'deleted') {
+    if (result.error) {
+        alert('Error: ' + result.error);
+    } else if (result.status === 'deleted') {
         await refreshChatList();
         if (chatList.length > 0) {
             await switchChat(chatList[0].id);
         }
     } else {
-        alert(result.error || 'Failed to delete chat');
+        alert('Failed to delete chat');
     }
 }
 
@@ -311,11 +334,13 @@ async function renameCurrentChat() {
     const newName = prompt('Enter new chat name:', chatNameEl.textContent);
     if (!newName || newName === chatNameEl.textContent) return;
     const result = await renameChat(currentChatId, newName);
-    if (result.name) {
+    if (result.error) {
+        alert('Error: ' + result.error);
+    } else if (result.name) {
         chatNameEl.textContent = result.name;
         await refreshChatList();
     } else {
-        alert(result.error || 'Failed to rename chat');
+        alert('Failed to rename chat');
     }
 }
 
@@ -328,30 +353,14 @@ userInput.addEventListener('keydown', function(e) {
 });
 
 // ---------- Event Listeners ----------
-console.log('Attaching event listeners...');
 sendButton.addEventListener('click', sendMessage);
-console.log('Send button listener attached');
 newChatBtn.addEventListener('click', createNewChat);
-console.log('New chat button listener attached');
 deleteChatBtn.addEventListener('click', deleteCurrentChat);
 renameChatBtn.addEventListener('click', renameCurrentChat);
-
-// ---------- Check Static Files ----------
-async function checkStaticFile() {
-    try {
-        const res = await fetch('/static/style.css');
-        if (!res.ok) {
-            console.warn('Static files may not be served correctly.');
-        }
-    } catch (e) {
-        console.warn('Static file check failed:', e);
-    }
-}
 
 // ---------- Initialization ----------
 async function init() {
     console.log('Initializing Terminator AI...');
-    await checkStaticFile();
     chatList = await fetchChats();
     console.log('Chats loaded:', chatList);
     
