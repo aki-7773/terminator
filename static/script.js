@@ -117,10 +117,8 @@ function renderChatList(chats) {
         item.addEventListener('click', () => switchChat(chat.id));
         chatListEl.appendChild(item);
     });
-    // Update new chat button state
     if (newChatBtn) {
         newChatBtn.disabled = chats.length >= 5;
-        console.log(`New chat button ${newChatBtn.disabled ? 'disabled' : 'enabled'}`);
     }
 }
 
@@ -296,8 +294,9 @@ async function refreshChatList() {
     renderChatList(chatList);
 }
 
+// ---------- The createNewChat function (with extensive logging) ----------
 async function createNewChat() {
-    console.log('Create new chat button clicked!');
+    console.log('✅ createNewChat() function called!');
     const name = prompt('Enter chat name:', `Chat ${chatList.length + 1}`);
     if (name === null) {
         console.log('User cancelled');
@@ -322,6 +321,9 @@ async function createNewChat() {
         alert('Failed to create chat');
     }
 }
+
+// Also create a fallback alias on window
+window.createNewChat = createNewChat;
 
 async function deleteCurrentChat() {
     if (!currentChatId) return;
@@ -368,11 +370,19 @@ userInput.addEventListener('keydown', function(e) {
     }
 });
 
-// ---------- Event Listeners ----------
+// ---------- Event Listeners (also bind onclick for safety) ----------
 sendButton.addEventListener('click', sendMessage);
-newChatBtn.addEventListener('click', createNewChat);
+// We keep the onclick in HTML, but also attach here
+if (newChatBtn) {
+    newChatBtn.addEventListener('click', createNewChat);
+}
 deleteChatBtn.addEventListener('click', deleteCurrentChat);
 renameChatBtn.addEventListener('click', renameCurrentChat);
+
+// Expose functions globally for inline onclick
+window.sendMessage = sendMessage;
+window.quickSend = quickSend;
+window.createNewChat = createNewChat;
 
 // ---------- Initialization ----------
 async function init() {
