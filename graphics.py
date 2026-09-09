@@ -1,23 +1,23 @@
 """
-Peak AI - Graphics Module (fixed)
-Handles all plotting and visualization without recursion
+Peak AI - Graphics Module (with image output)
 """
 
 import re
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')  # Ensure headless backend
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import io
+import base64
 
 class GraphicsHandler:
     def __init__(self):
         self.plot_ready = True
-    
+
     def create_plot(self, user_input):
-        """Main entry point – calls specific plot functions."""
+        """Main entry – returns dict with 'text' and 'image' (base64)."""
         try:
             lower = user_input.lower()
-            
             if "bar" in lower:
                 return self._bar_chart(user_input)
             elif "pie" in lower:
@@ -27,29 +27,36 @@ class GraphicsHandler:
             elif "histogram" in lower:
                 return self._histogram(user_input)
             else:
-                # Default: line plot (handles sin, cos, etc.)
                 return self._line_plot(user_input)
         except Exception as e:
-            return f"Couldn't create plot: {str(e)}"
-    
+            return {"text": f"Couldn't create plot: {str(e)}", "image": None}
+
+    def _plot_to_base64(self, fig):
+        """Convert matplotlib figure to base64 PNG."""
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+        plt.close(fig)
+        return f"data:image/png;base64,{img_base64}"
+
     def _bar_chart(self, user_input):
         numbers = re.findall(r'(\d+\.?\d*)', user_input)
+        fig, ax = plt.subplots()
         if numbers:
             vals = [float(n) for n in numbers]
             labels = [f'Item {i+1}' for i in range(len(vals))]
-            plt.bar(labels, vals, color='skyblue', edgecolor='black')
-            plt.title('📊 Bar Chart')
-            plt.grid(True, alpha=0.3)
         else:
-            labels = ['A', 'B', 'C', 'D', 'E']
             vals = [25, 40, 35, 50, 45]
-            plt.bar(labels, vals, color=['red','blue','green','orange','purple'])
-            plt.title('📊 Sample Bar Chart')
-        plt.xlabel('Categories')
-        plt.ylabel('Values')
-        plt.show()
-        return "✅ Bar chart created"
-    
+            labels = ['A', 'B', 'C', 'D', 'E']
+        ax.bar(labels, vals, color='skyblue', edgecolor='black')
+        ax.set_title('📊 Bar Chart')
+        ax.set_xlabel('Categories')
+        ax.set_ylabel('Values')
+        ax.grid(True, alpha=0.3)
+        img = self._plot_to_base64(fig)
+        return {"text": "✅ Bar chart created", "image": img}
+
     def _pie_chart(self, user_input):
         numbers = re.findall(r'(\d+\.?\d*)', user_input)
         if numbers:
@@ -58,50 +65,53 @@ class GraphicsHandler:
         else:
             vals = [30, 25, 25, 20]
             labels = ['Apples', 'Bananas', 'Oranges', 'Grapes']
-        plt.pie(vals, labels=labels, autopct='%1.1f%%', startangle=90)
-        plt.title('📊 Pie Chart')
-        plt.axis('equal')
-        plt.show()
-        return "✅ Pie chart created"
-    
+        fig, ax = plt.subplots()
+        ax.pie(vals, labels=labels, autopct='%1.1f%%', startangle=90)
+        ax.set_title('📊 Pie Chart')
+        ax.axis('equal')
+        img = self._plot_to_base64(fig)
+        return {"text": "✅ Pie chart created", "image": img}
+
     def _scatter_plot(self, user_input):
         numbers = re.findall(r'(\d+\.?\d*)', user_input)
+        fig, ax = plt.subplots()
         if len(numbers) >= 4:
             x = [float(n) for n in numbers[0:len(numbers)//2]]
             y = [float(n) for n in numbers[len(numbers)//2:]]
-            plt.scatter(x, y, color='red', s=100, alpha=0.6)
-            plt.title('Scatter Plot')
-            plt.xlabel('X')
-            plt.ylabel('Y')
+            ax.scatter(x, y, color='red', s=100, alpha=0.6)
+            ax.set_title('Scatter Plot')
+            ax.set_xlabel('X')
+            ax.set_ylabel('Y')
         else:
             x = np.random.rand(50)
             y = np.random.rand(50)
-            plt.scatter(x, y, c=x, s=100, alpha=0.6)
-            plt.title('Random Scatter Plot')
-            plt.colorbar()
-        plt.grid(True, alpha=0.3)
-        plt.show()
-        return "✅ Scatter plot created"
-    
+            ax.scatter(x, y, c=x, s=100, alpha=0.6)
+            ax.set_title('Random Scatter Plot')
+            plt.colorbar(ax.scatter(x, y, c=x, s=100, alpha=0.6), ax=ax)
+        ax.grid(True, alpha=0.3)
+        img = self._plot_to_base64(fig)
+        return {"text": "✅ Scatter plot created", "image": img}
+
     def _histogram(self, user_input):
         numbers = re.findall(r'(\d+\.?\d*)', user_input)
+        fig, ax = plt.subplots()
         if numbers:
             data = [float(n) for n in numbers]
         else:
             data = np.random.normal(0, 1, 1000)
-        plt.hist(data, bins=10, color='green', alpha=0.7)
-        plt.title('Histogram')
-        plt.xlabel('Values')
-        plt.ylabel('Frequency')
-        plt.grid(True, alpha=0.3)
-        plt.show()
-        return "✅ Histogram created"
-    
+        ax.hist(data, bins=10, color='green', alpha=0.7)
+        ax.set_title('Histogram')
+        ax.set_xlabel('Values')
+        ax.set_ylabel('Frequency')
+        ax.grid(True, alpha=0.3)
+        img = self._plot_to_base64(fig)
+        return {"text": "✅ Histogram created", "image": img}
+
     def _line_plot(self, user_input):
         lower = user_input.lower()
         x = np.linspace(0, 10, 100)
-        
-        # Determine function
+        fig, ax = plt.subplots()
+
         if "sin" in lower:
             y = np.sin(x)
             label = "sin(x)"
@@ -111,7 +121,7 @@ class GraphicsHandler:
         elif "tan" in lower:
             y = np.tan(x)
             label = "tan(x)"
-            plt.ylim(-10, 10)  # avoid extreme values
+            ax.set_ylim(-10, 10)
         elif "exp" in lower or "exponential" in lower:
             y = np.exp(x/2)
             label = "exp(x/2)"
@@ -126,22 +136,22 @@ class GraphicsHandler:
             y = x**3
             label = "x³"
         else:
-            # Default: show sin and cos together
-            plt.plot(x, np.sin(x), label='sin(x)', linewidth=2)
-            plt.plot(x, np.cos(x), label='cos(x)', linewidth=2)
-            plt.title('Sine and Cosine')
-            plt.xlabel('x')
-            plt.ylabel('y')
-            plt.legend()
-            plt.grid(True, alpha=0.3)
-            plt.show()
-            return "✅ Sine and cosine plot"
-        
-        plt.plot(x, y, label=label, linewidth=2)
-        plt.title(f'Plot of {label}')
-        plt.xlabel('x')
-        plt.ylabel('y')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        plt.show()
-        return f"✅ Plot of {label} created"
+            # default: sin and cos together
+            ax.plot(x, np.sin(x), label='sin(x)', linewidth=2)
+            ax.plot(x, np.cos(x), label='cos(x)', linewidth=2)
+            ax.set_title('Sine and Cosine')
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            img = self._plot_to_base64(fig)
+            return {"text": "✅ Sine and cosine plot", "image": img}
+
+        ax.plot(x, y, label=label, linewidth=2)
+        ax.set_title(f'Plot of {label}')
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        img = self._plot_to_base64(fig)
+        return {"text": f"✅ Plot of {label} created", "image": img}
