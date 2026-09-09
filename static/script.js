@@ -56,7 +56,8 @@ async function sendMessageToChat(chatId, message) {
     }
 }
 
-async function createNewChat(name) {
+// ---------- RENAMED API function (was createNewChat) ----------
+async function apiCreateNewChat(name) {
     try {
         const res = await fetch('/chat/new', {
             method: 'POST',
@@ -69,7 +70,7 @@ async function createNewChat(name) {
         }
         return await res.json();
     } catch (e) {
-        console.error('Create chat error:', e);
+        console.error('Create chat API error:', e);
         return { error: e.message };
     }
 }
@@ -294,9 +295,9 @@ async function refreshChatList() {
     renderChatList(chatList);
 }
 
-// ---------- The createNewChat function (with extensive logging) ----------
+// ---------- UI Handler for New Chat ----------
 async function createNewChat() {
-    console.log('✅ createNewChat() function called!');
+    console.log('✅ createNewChat() UI handler called!');
     const name = prompt('Enter chat name:', `Chat ${chatList.length + 1}`);
     if (name === null) {
         console.log('User cancelled');
@@ -310,19 +311,20 @@ async function createNewChat() {
     }
     
     console.log(`Creating new chat with name: "${trimmedName}"`);
-    const data = await createNewChat(trimmedName);
+    // Call the API function (renamed)
+    const data = await apiCreateNewChat(trimmedName);
     console.log('Server response:', data);
-    if (data.error) {
+    if (data && data.error) {
         alert('Error: ' + data.error);
-    } else if (data.id) {
+    } else if (data && data.id) {
         await refreshChatList();
         await switchChat(data.id);
     } else {
-        alert('Failed to create chat');
+        alert('Failed to create chat. Server response was invalid.');
     }
 }
 
-// Also create a fallback alias on window
+// Make it globally accessible for inline onclick
 window.createNewChat = createNewChat;
 
 async function deleteCurrentChat() {
@@ -370,19 +372,17 @@ userInput.addEventListener('keydown', function(e) {
     }
 });
 
-// ---------- Event Listeners (also bind onclick for safety) ----------
+// ---------- Event Listeners ----------
 sendButton.addEventListener('click', sendMessage);
-// We keep the onclick in HTML, but also attach here
 if (newChatBtn) {
     newChatBtn.addEventListener('click', createNewChat);
 }
 deleteChatBtn.addEventListener('click', deleteCurrentChat);
 renameChatBtn.addEventListener('click', renameCurrentChat);
 
-// Expose functions globally for inline onclick
+// Expose other functions globally for inline onclick
 window.sendMessage = sendMessage;
 window.quickSend = quickSend;
-window.createNewChat = createNewChat;
 
 // ---------- Initialization ----------
 async function init() {
@@ -392,8 +392,8 @@ async function init() {
     
     if (chatList.length === 0) {
         console.log('No chats found, creating default...');
-        const newChat = await createNewChat('Chat 1');
-        if (newChat.id) {
+        const newChat = await apiCreateNewChat('Chat 1');
+        if (newChat && newChat.id) {
             chatList = await fetchChats();
         }
     }
