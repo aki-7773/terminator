@@ -4,7 +4,7 @@ Peak AI - Web Application with Multi-Chat Support
 """
 
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Agg')  # MUST be before any other matplotlib import
 
 from flask import Flask, render_template, request, jsonify, abort
 from chat import PeakAI
@@ -92,8 +92,7 @@ def get_chat(chat_id):
 @app.route('/chat/new', methods=['POST'])
 def new_chat():
     """Create a new chat (if under max)."""
-    # Log the request for debugging
-    print(f"New chat request: {request.data}")  # This will appear in Render logs
+    print(f"📌 New chat request received")  # debug log
 
     if len(chats) >= MAX_CHATS:
         return jsonify({'error': f'Maximum {MAX_CHATS} chats allowed'}), 400
@@ -101,8 +100,7 @@ def new_chat():
     # Parse JSON body
     data = request.get_json()
     if data is None:
-        # If no JSON, try form data or use default
-        data = request.form.to_dict()
+        data = {}
     
     name = data.get('name', '').strip()
     if not name:
@@ -119,6 +117,7 @@ def new_chat():
     }
     save_chats()
     
+    print(f"✅ Created new chat: {name} (id: {chat_id})")
     return jsonify({
         'id': chat_id,
         'name': name,
@@ -184,6 +183,9 @@ def status():
         'status': 'success'
     })
 
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
