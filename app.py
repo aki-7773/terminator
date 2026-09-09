@@ -1,191 +1,156 @@
-#Flask web server (main entry point)
 """
-Peak AI - Web Application with Multi-Chat Support
+Peak AI - Graphics Module (with image output)
 """
 
+import re
+import numpy as np
 import matplotlib
-matplotlib.use('Agg')  # MUST be before any other matplotlib import
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import io
+import base64
 
-from flask import Flask, render_template, request, jsonify, abort
-from chat import PeakAI
-import os
-import json
-import uuid
-from datetime import datetime
+class GraphicsHandler:
+    def __init__(self):
+        self.plot_ready = True
 
-app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-for-terminator')
+    def create_plot(self, user_input):
+        """Main entry – returns dict with 'response' and 'image'."""
+        try:
+            lower = user_input.lower()
+            if "bar" in lower:
+                return self._bar_chart(user_input)
+            elif "pie" in lower:
+                return self._pie_chart(user_input)
+            elif "scatter" in lower:
+                return self._scatter_plot(user_input)
+            elif "histogram" in lower:
+                return self._histogram(user_input)
+            else:
+                return self._line_plot(user_input)
+        except Exception as e:
+            return {"response": f"Couldn't create plot: {str(e)}", "image": None}
 
-# ---------- Chat Data Management ----------
-CHATS_FILE = 'chats_data.json'
-MAX_CHATS = 5
+    def _plot_to_base64(self, fig):
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+        plt.close(fig)
+        return f"data:image/png;base64,{img_base64}"
 
-def load_chats():
-    if os.path.exists(CHATS_FILE):
-        with open(CHATS_FILE, 'r') as f:
-            data = json.load(f)
-        for chat_id, chat_data in data.items():
-            ai = PeakAI(chat_data.get('name', 'Terminator AI'))
-            if 'history' in chat_data:
-                ai.conversation_history = chat_data['history']
-            chat_data['ai'] = ai
-        return data
-    else:
-        default_id = str(uuid.uuid4())
-        ai = PeakAI("Terminator AI")
-        return {
-            default_id: {
-                'id': default_id,
-                'name': 'Chat 1',
-                'ai': ai,
-                'history': ai.conversation_history,
-                'created_at': datetime.now().isoformat()
-            }
-        }
+    def _bar_chart(self, user_input):
+        numbers = re.findall(r'(\d+\.?\d*)', user_input)
+        fig, ax = plt.subplots()
+        if numbers:
+            vals = [float(n) for n in numbers]
+            labels = [f'Item {i+1}' for i in range(len(vals))]
+        else:
+            vals = [25, 40, 35, 50, 45]
+            labels = ['A', 'B', 'C', 'D', 'E']
+        ax.bar(labels, vals, color='skyblue', edgecolor='black')
+        ax.set_title('📊 Bar Chart')
+        ax.set_xlabel('Categories')
+        ax.set_ylabel('Values')
+        ax.grid(True, alpha=0.3)
+        img = self._plot_to_base64(fig)
+        return {"response": "✅ Bar chart created", "image": img}
 
-def save_chats():
-    data = {}
-    for chat_id, chat_data in chats.items():
-        data[chat_id] = {
-            'id': chat_data['id'],
-            'name': chat_data['name'],
-            'history': chat_data['ai'].conversation_history,
-            'created_at': chat_data.get('created_at', datetime.now().isoformat())
-        }
-    with open(CHATS_FILE, 'w') as f:
-        json.dump(data, f, indent=2)
+    def _pie_chart(self, user_input):
+        numbers = re.findall(r'(\d+\.?\d*)', user_input)
+        if numbers:
+            vals = [float(n) for n in numbers]
+            labels = [f'Part {i+1}' for i in range(len(vals))]
+        else:
+            vals = [30, 25, 25, 20]
+            labels = ['Apples', 'Bananas', 'Oranges', 'Grapes']
+        fig, ax = plt.subplots()
+        ax.pie(vals, labels=labels, autopct='%1.1f%%', startangle=90)
+        ax.set_title('📊 Pie Chart')
+        ax.axis('equal')
+        img = self._plot_to_base64(fig)
+        return {"response": "✅ Pie chart created", "image": img}
 
-chats = load_chats()
+    def _scatter_plot(self, user_input):
+        numbers = re.findall(r'(\d+\.?\d*)', user_input)
+        fig, ax = plt.subplots()
+        if len(numbers) >= 4:
+            x = [float(n) for n in numbers[0:len(numbers)//2]]
+            y = [float(n) for n in numbers[len(numbers)//2:]]
+            ax.scatter(x, y, color='red', s=100, alpha=0.6)
+            ax.set_title('Scatter Plot')
+            ax.set_xlabel('X')
+            ax.set_ylabel('Y')
+        else:
+            x = np.random.rand(50)
+            y = np.random.rand(50)
+            ax.scatter(x, y, c=x, s=100, alpha=0.6)
+            ax.set_title('Random Scatter Plot')
+            plt.colorbar(ax.scatter(x, y, c=x, s=100, alpha=0.6), ax=ax)
+        ax.grid(True, alpha=0.3)
+        img = self._plot_to_base64(fig)
+        return {"response": "✅ Scatter plot created", "image": img}
 
-# ---------- Routes ----------
+    def _histogram(self, user_input):
+        numbers = re.findall(r'(\d+\.?\d*)', user_input)
+        fig, ax = plt.subplots()
+        if numbers:
+            data = [float(n) for n in numbers]
+        else:
+            data = np.random.normal(0, 1, 1000)
+        ax.hist(data, bins=10, color='green', alpha=0.7)
+        ax.set_title('Histogram')
+        ax.set_xlabel('Values')
+        ax.set_ylabel('Frequency')
+        ax.grid(True, alpha=0.3)
+        img = self._plot_to_base64(fig)
+        return {"response": "✅ Histogram created", "image": img}
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+    def _line_plot(self, user_input):
+        lower = user_input.lower()
+        x = np.linspace(0, 10, 100)
+        fig, ax = plt.subplots()
 
-@app.route('/chats', methods=['GET'])
-def list_chats():
-    result = []
-    for chat_id, chat_data in chats.items():
-        history = chat_data['ai'].conversation_history
-        preview = ''
-        if history:
-            for msg in reversed(history):
-                if msg.startswith('You:'):
-                    preview = msg[5:][:50] + ('...' if len(msg) > 55 else '')
-                    break
-        result.append({
-            'id': chat_id,
-            'name': chat_data['name'],
-            'preview': preview,
-            'created_at': chat_data.get('created_at', '')
-        })
-    return jsonify(result)
+        if "sin" in lower:
+            y = np.sin(x)
+            label = "sin(x)"
+        elif "cos" in lower:
+            y = np.cos(x)
+            label = "cos(x)"
+        elif "tan" in lower:
+            y = np.tan(x)
+            label = "tan(x)"
+            ax.set_ylim(-10, 10)
+        elif "exp" in lower or "exponential" in lower:
+            y = np.exp(x/2)
+            label = "exp(x/2)"
+        elif "log" in lower:
+            x = np.linspace(0.1, 10, 100)
+            y = np.log(x)
+            label = "ln(x)"
+        elif "parabola" in lower or "quadratic" in lower:
+            y = x**2
+            label = "x²"
+        elif "cubic" in lower:
+            y = x**3
+            label = "x³"
+        else:
+            # default: sin and cos together
+            ax.plot(x, np.sin(x), label='sin(x)', linewidth=2)
+            ax.plot(x, np.cos(x), label='cos(x)', linewidth=2)
+            ax.set_title('Sine and Cosine')
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            img = self._plot_to_base64(fig)
+            return {"response": "✅ Sine and cosine plot", "image": img}
 
-@app.route('/chat/<chat_id>', methods=['GET'])
-def get_chat(chat_id):
-    if chat_id not in chats:
-        abort(404)
-    history = chats[chat_id]['ai'].conversation_history
-    return jsonify({'history': history})
-
-@app.route('/chat/new', methods=['POST'])
-def new_chat():
-    """Create a new chat (if under max)."""
-    print(f"📌 New chat request received")  # debug log
-
-    if len(chats) >= MAX_CHATS:
-        return jsonify({'error': f'Maximum {MAX_CHATS} chats allowed'}), 400
-    
-    # Parse JSON body
-    data = request.get_json()
-    if data is None:
-        data = {}
-    
-    name = data.get('name', '').strip()
-    if not name:
-        name = f'Chat {len(chats)+1}'
-    
-    chat_id = str(uuid.uuid4())
-    ai = PeakAI("Terminator AI")
-    chats[chat_id] = {
-        'id': chat_id,
-        'name': name,
-        'ai': ai,
-        'history': ai.conversation_history,
-        'created_at': datetime.now().isoformat()
-    }
-    save_chats()
-    
-    print(f"✅ Created new chat: {name} (id: {chat_id})")
-    return jsonify({
-        'id': chat_id,
-        'name': name,
-        'created_at': chats[chat_id]['created_at']
-    })
-
-@app.route('/chat/<chat_id>/delete', methods=['DELETE'])
-def delete_chat(chat_id):
-    if len(chats) <= 1:
-        return jsonify({'error': 'Cannot delete the last chat'}), 400
-    if chat_id not in chats:
-        abort(404)
-    del chats[chat_id]
-    save_chats()
-    return jsonify({'status': 'deleted'})
-
-@app.route('/chat/<chat_id>/send', methods=['POST'])
-def send_message(chat_id):
-    if chat_id not in chats:
-        return jsonify({'error': 'Chat not found'}), 404
-    
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'Invalid request'}), 400
-    
-    user_message = data.get('message', '').strip()
-    if not user_message:
-        return jsonify({'error': 'Empty message'}), 400
-    
-    try:
-        ai = chats[chat_id]['ai']
-        response = ai.process_input(user_message)
-        save_chats()
-        return jsonify({
-            'response': response,
-            'history': ai.conversation_history
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/chat/<chat_id>/rename', methods=['POST'])
-def rename_chat(chat_id):
-    if chat_id not in chats:
-        abort(404)
-    data = request.get_json()
-    new_name = data.get('name', '').strip()
-    if not new_name:
-        return jsonify({'error': 'Name cannot be empty'}), 400
-    chats[chat_id]['name'] = new_name
-    save_chats()
-    return jsonify({'name': new_name})
-
-@app.route('/reset', methods=['POST'])
-def reset_conversation():
-    return jsonify({'error': 'Use per-chat reset if needed'}), 400
-
-@app.route('/status', methods=['GET'])
-def status():
-    return jsonify({
-        'name': 'Terminator AI',
-        'version': '3.0',
-        'chats': len(chats),
-        'status': 'success'
-    })
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+        ax.plot(x, y, label=label, linewidth=2)
+        ax.set_title(f'Plot of {label}')
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        img = self._plot_to_base64(fig)
+        return {"response": f"✅ Plot of {label} created", "image": img}
