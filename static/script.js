@@ -45,6 +45,15 @@ async function sendMessageToChat(chatId, message) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message })
         });
+        if (res.status === 404) {
+            // Chat not found – refresh list and switch to first
+            console.warn('Chat not found, refreshing list...');
+            await refreshChatList();
+            if (chatList.length > 0) {
+                await switchChat(chatList[0].id);
+            }
+            throw new Error('Chat session expired. Switched to first chat.');
+        }
         if (!res.ok) {
             const text = await res.text();
             throw new Error(`Server error ${res.status}: ${text.substring(0, 100)}`);
@@ -141,6 +150,10 @@ function renderMessages(history) {
 }
 
 function addMessage(text, isUser, image) {
+    // Ensure text is a string
+    if (typeof text !== 'string') {
+        text = String(text);
+    }
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
     const avatar = isUser ? '👤' : '🤖';
@@ -163,6 +176,9 @@ function addMessage(text, isUser, image) {
 }
 
 function formatMessage(text) {
+    if (typeof text !== 'string') {
+        text = String(text);
+    }
     let html = text;
     html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
     html = html.replace(/`([^`]*)`/g, '<code>$1</code>');
@@ -218,8 +234,9 @@ async function sendMessage() {
         if (data.error) {
             addMessage('⚠️ Error: ' + data.error, false, null);
         } else if (data.response) {
-            // data may include an image
-            addMessage(data.response, false, data.image || null);
+            // Ensure response text is a string
+            const responseText = data.response || '';
+            addMessage(responseText, false, data.image || null);
             // Refresh chat list previews (but history already updated)
             refreshChatList();
         } else {
