@@ -45,15 +45,6 @@ async function sendMessageToChat(chatId, message) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message })
         });
-        if (res.status === 404) {
-            // Chat not found – refresh list and switch to first
-            console.warn('Chat not found, refreshing list...');
-            await refreshChatList();
-            if (chatList.length > 0) {
-                await switchChat(chatList[0].id);
-            }
-            throw new Error('Chat session expired. Switched to first chat.');
-        }
         if (!res.ok) {
             const text = await res.text();
             throw new Error(`Server error ${res.status}: ${text.substring(0, 100)}`);
@@ -65,7 +56,6 @@ async function sendMessageToChat(chatId, message) {
     }
 }
 
-// ---------- RENAMED API function (was createNewChat) ----------
 async function apiCreateNewChat(name) {
     try {
         const res = await fetch('/chat/new', {
@@ -135,7 +125,6 @@ function renderChatList(chats) {
 function renderMessages(history) {
     chatMessages.innerHTML = '';
     if (!history || history.length === 0) {
-        // Show welcome message
         addMessage("Hello! I'm Terminator AI, the ultimate assistant. I can do math, draw, search the web, analyze data, and chat! 🚀\n\nTry asking me something!", false, null);
         return;
     }
@@ -152,7 +141,7 @@ function renderMessages(history) {
 function addMessage(text, isUser, image) {
     // Ensure text is a string
     if (typeof text !== 'string') {
-        text = String(text);
+        text = JSON.stringify(text);
     }
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
@@ -176,9 +165,8 @@ function addMessage(text, isUser, image) {
 }
 
 function formatMessage(text) {
-    if (typeof text !== 'string') {
-        text = String(text);
-    }
+    // Ensure text is string (just in case)
+    if (typeof text !== 'string') text = String(text);
     let html = text;
     html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
     html = html.replace(/`([^`]*)`/g, '<code>$1</code>');
@@ -231,16 +219,22 @@ async function sendMessage() {
         const data = await sendMessageToChat(currentChatId, message);
         typingIndicator.style.display = 'none';
         
+        console.log('📦 Server response:', data); // debug
+
         if (data.error) {
             addMessage('⚠️ Error: ' + data.error, false, null);
-        } else if (data.response) {
-            // Ensure response text is a string
-            const responseText = data.response || '';
-            addMessage(responseText, false, data.image || null);
-            // Refresh chat list previews (but history already updated)
-            refreshChatList();
         } else {
-            addMessage('⚠️ No response from server.', false, null);
+            // Extract response text and image
+            let responseText = data.response || data.text || data.message || '';
+            let image = data.image || null;
+
+            // If responseText is an object, stringify it
+            if (typeof responseText === 'object') {
+                responseText = JSON.stringify(responseText);
+            }
+
+            addMessage(responseText, false, image);
+            refreshChatList();
         }
     } catch (e) {
         typingIndicator.style.display = 'none';
@@ -260,7 +254,6 @@ async function refreshChatList() {
     renderChatList(chatList);
 }
 
-// ---------- UI Handler for New Chat ----------
 async function createNewChat() {
     console.log('✅ createNewChat() UI handler called!');
     const name = prompt('Enter chat name:', `Chat ${chatList.length + 1}`);
@@ -288,7 +281,6 @@ async function createNewChat() {
     }
 }
 
-// Make it globally accessible for inline onclick
 window.createNewChat = createNewChat;
 
 async function deleteCurrentChat() {
@@ -344,7 +336,6 @@ if (newChatBtn) {
 deleteChatBtn.addEventListener('click', deleteCurrentChat);
 renameChatBtn.addEventListener('click', renameCurrentChat);
 
-// Expose other functions globally for inline onclick
 window.sendMessage = sendMessage;
 window.quickSend = quickSend;
 
@@ -378,7 +369,6 @@ async function init() {
     console.log('Initialization complete!');
 }
 
-// Start when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
