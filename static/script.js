@@ -126,45 +126,39 @@ function renderChatList(chats) {
 function renderMessages(history) {
     chatMessages.innerHTML = '';
     if (!history || history.length === 0) {
-        const welcome = document.createElement('div');
-        welcome.className = 'message ai-message';
-        welcome.innerHTML = `
-            <div class="message-content">
-                <div class="message-header">
-                    <span class="message-avatar">🤖</span>
-                    <span class="message-sender">Terminator AI</span>
-                </div>
-                <div class="message-text">
-                    Hello! I'm Terminator AI, the ultimate assistant. I can do math, draw, search the web, analyze data, and chat! 🚀
-                    <br><br>
-                    Try asking me something!
-                </div>
-            </div>
-        `;
-        chatMessages.appendChild(welcome);
+        // Show welcome message
+        addMessage("Hello! I'm Terminator AI, the ultimate assistant. I can do math, draw, search the web, analyze data, and chat! 🚀\n\nTry asking me something!", false, null);
         return;
     }
 
     history.forEach(entry => {
         const isUser = entry.startsWith('You:');
         const sender = isUser ? 'You' : 'Terminator AI';
-        const avatar = isUser ? '👤' : '🤖';
-        const messageClass = isUser ? 'user-message' : 'ai-message';
         const text = isUser ? entry.substring(4) : entry.substring(sender.length + 2);
-        
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `message ${messageClass}`;
-        msgDiv.innerHTML = `
-            <div class="message-content">
-                <div class="message-header">
-                    <span class="message-avatar">${avatar}</span>
-                    <span class="message-sender">${sender}</span>
-                </div>
-                <div class="message-text">${formatMessage(text)}</div>
-            </div>
-        `;
-        chatMessages.appendChild(msgDiv);
+        addMessage(text, isUser, null);
     });
+    scrollToBottom();
+}
+
+function addMessage(text, isUser, image) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
+    const avatar = isUser ? '👤' : '🤖';
+    const sender = isUser ? 'You' : 'Terminator AI';
+    let content = `
+        <div class="message-content">
+            <div class="message-header">
+                <span class="message-avatar">${avatar}</span>
+                <span class="message-sender">${sender}</span>
+            </div>
+            <div class="message-text">${formatMessage(text)}</div>
+    `;
+    if (image) {
+        content += `<div style="margin-top:8px;"><img src="${image}" style="max-width:100%; border-radius:8px;"/></div>`;
+    }
+    content += `</div>`;
+    msgDiv.innerHTML = content;
+    chatMessages.appendChild(msgDiv);
     scrollToBottom();
 }
 
@@ -210,18 +204,7 @@ async function sendMessage() {
     if (!message || !currentChatId) return;
 
     // Add user message
-    const userMsg = document.createElement('div');
-    userMsg.className = 'message user-message';
-    userMsg.innerHTML = `
-        <div class="message-content">
-            <div class="message-header">
-                <span class="message-avatar">👤</span>
-                <span class="message-sender">You</span>
-            </div>
-            <div class="message-text">${formatMessage(message)}</div>
-        </div>
-    `;
-    chatMessages.appendChild(userMsg);
+    addMessage(message, true, null);
     userInput.value = '';
     scrollToBottom();
 
@@ -233,53 +216,18 @@ async function sendMessage() {
         typingIndicator.style.display = 'none';
         
         if (data.error) {
-            const errMsg = document.createElement('div');
-            errMsg.className = 'message ai-message';
-            errMsg.innerHTML = `
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-avatar">🤖</span>
-                        <span class="message-sender">Terminator AI</span>
-                    </div>
-                    <div class="message-text">⚠️ Error: ${data.error}</div>
-                </div>
-            `;
-            chatMessages.appendChild(errMsg);
-            scrollToBottom();
+            addMessage('⚠️ Error: ' + data.error, false, null);
         } else if (data.response) {
-            chatHistory = data.history || [];
-            renderMessages(chatHistory);
+            // data may include an image
+            addMessage(data.response, false, data.image || null);
+            // Refresh chat list previews (but history already updated)
             refreshChatList();
         } else {
-            const errMsg = document.createElement('div');
-            errMsg.className = 'message ai-message';
-            errMsg.innerHTML = `
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-avatar">🤖</span>
-                        <span class="message-sender">Terminator AI</span>
-                    </div>
-                    <div class="message-text">⚠️ No response from server.</div>
-                </div>
-            `;
-            chatMessages.appendChild(errMsg);
-            scrollToBottom();
+            addMessage('⚠️ No response from server.', false, null);
         }
     } catch (e) {
         typingIndicator.style.display = 'none';
-        const errMsg = document.createElement('div');
-        errMsg.className = 'message ai-message';
-        errMsg.innerHTML = `
-            <div class="message-content">
-                <div class="message-header">
-                    <span class="message-avatar">🤖</span>
-                    <span class="message-sender">Terminator AI</span>
-                </div>
-                <div class="message-text">⚠️ Connection error: ${e.message}</div>
-            </div>
-        `;
-        chatMessages.appendChild(errMsg);
-        scrollToBottom();
+        addMessage('⚠️ Connection error: ' + e.message, false, null);
     }
 }
 
@@ -311,7 +259,6 @@ async function createNewChat() {
     }
     
     console.log(`Creating new chat with name: "${trimmedName}"`);
-    // Call the API function (renamed)
     const data = await apiCreateNewChat(trimmedName);
     console.log('Server response:', data);
     if (data && data.error) {
