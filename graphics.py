@@ -15,7 +15,7 @@ class GraphicsHandler:
         self.plot_ready = True
 
     def create_plot(self, user_input):
-        """Main entry – returns dict with 'text' and 'image' (base64)."""
+        """Main entry – returns dict with 'response' and 'image'."""
         try:
             lower = user_input.lower()
             if "bar" in lower:
@@ -29,7 +29,7 @@ class GraphicsHandler:
             else:
                 return self._line_plot(user_input)
         except Exception as e:
-            return {"text": f"Couldn't create plot: {str(e)}", "image": None}
+            return {"response": f"Couldn't create plot: {str(e)}", "image": None}
 
     def _plot_to_base64(self, fig):
         """Convert matplotlib figure to base64 PNG."""
@@ -55,7 +55,7 @@ class GraphicsHandler:
         ax.set_ylabel('Values')
         ax.grid(True, alpha=0.3)
         img = self._plot_to_base64(fig)
-        return {"text": "✅ Bar chart created", "image": img}
+        return {"response": "✅ Bar chart created", "image": img}
 
     def _pie_chart(self, user_input):
         numbers = re.findall(r'(\d+\.?\d*)', user_input)
@@ -70,7 +70,7 @@ class GraphicsHandler:
         ax.set_title('📊 Pie Chart')
         ax.axis('equal')
         img = self._plot_to_base64(fig)
-        return {"text": "✅ Pie chart created", "image": img}
+        return {"response": "✅ Pie chart created", "image": img}
 
     def _scatter_plot(self, user_input):
         numbers = re.findall(r'(\d+\.?\d*)', user_input)
@@ -90,7 +90,7 @@ class GraphicsHandler:
             plt.colorbar(ax.scatter(x, y, c=x, s=100, alpha=0.6), ax=ax)
         ax.grid(True, alpha=0.3)
         img = self._plot_to_base64(fig)
-        return {"text": "✅ Scatter plot created", "image": img}
+        return {"response": "✅ Scatter plot created", "image": img}
 
     def _histogram(self, user_input):
         numbers = re.findall(r'(\d+\.?\d*)', user_input)
@@ -105,7 +105,7 @@ class GraphicsHandler:
         ax.set_ylabel('Frequency')
         ax.grid(True, alpha=0.3)
         img = self._plot_to_base64(fig)
-        return {"text": "✅ Histogram created", "image": img}
+        return {"response": "✅ Histogram created", "image": img}
 
     def _line_plot(self, user_input):
         lower = user_input.lower()
@@ -145,7 +145,7 @@ class GraphicsHandler:
             ax.legend()
             ax.grid(True, alpha=0.3)
             img = self._plot_to_base64(fig)
-            return {"text": "✅ Sine and cosine plot", "image": img}
+            return {"response": "✅ Sine and cosine plot", "image": img}
 
         ax.plot(x, y, label=label, linewidth=2)
         ax.set_title(f'Plot of {label}')
@@ -154,4 +154,4 @@ class GraphicsHandler:
         ax.legend()
         ax.grid(True, alpha=0.3)
         img = self._plot_to_base64(fig)
-        return {"text": f"✅ Plot of {label} created", "image": img}
+        return {"response": f"✅ Plot of {label} created", "image": img}
