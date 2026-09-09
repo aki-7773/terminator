@@ -1,14 +1,16 @@
 // ---------- DOM Elements ----------
-const chatListEl = document.getElementById('chatList');
-const chatMessages = document.getElementById('chatMessages');
-const userInput = document.getElementById('userInput');
-const sendButton = document.getElementById('sendButton');
-const typingIndicator = document.getElementById('typingIndicator');
-const chatNameEl = document.getElementById('chatName');
-const newChatBtn = document.getElementById('newChatBtn');
-const deleteChatBtn = document.getElementById('deleteChatBtn');
-const renameChatBtn = document.getElementById('renameChatBtn');
-const statusText = document.getElementById('statusText');
+const dom = {
+    chatList: document.getElementById('chatList'),
+    chatMessages: document.getElementById('chatMessages'),
+    userInput: document.getElementById('userInput'),
+    sendButton: document.getElementById('sendButton'),
+    typingIndicator: document.getElementById('typingIndicator'),
+    chatName: document.getElementById('chatName'),
+    newChatBtn: document.getElementById('newChatBtn'),
+    deleteChatBtn: document.getElementById('deleteChatBtn'),
+    renameChatBtn: document.getElementById('renameChatBtn'),
+    statusText: document.getElementById('statusText')
+};
 
 // ---------- State ----------
 let currentChatId = null;
@@ -47,6 +49,17 @@ async function sendMessageToChat(chatId, message) {
         });
         if (!res.ok) {
             const text = await res.text();
+            // If chat not found, try to refresh chat list and switch to first chat
+            if (res.status === 404) {
+                console.warn('Chat not found, refreshing list...');
+                await refreshChatList();
+                if (chatList.length > 0 && chatList[0].id !== chatId) {
+                    await switchChat(chatList[0].id);
+                    // Retry with new chat ID
+                    return sendMessageToChat(chatList[0].id, message);
+                }
+                throw new Error('Chat session expired. Switched to first chat.');
+            }
             throw new Error(`Server error ${res.status}: ${text.substring(0, 100)}`);
         }
         return await res.json();
@@ -102,7 +115,7 @@ async function renameChat(chatId, newName) {
 
 // ---------- Render Functions ----------
 function renderChatList(chats) {
-    chatListEl.innerHTML = '';
+    dom.chatList.innerHTML = '';
     chats.forEach(chat => {
         const item = document.createElement('div');
         item.className = `chat-item${chat.id === currentChatId ? ' active' : ''}`;
@@ -115,15 +128,15 @@ function renderChatList(chats) {
             <div class="chat-preview">${chat.preview || 'New chat'}</div>
         `;
         item.addEventListener('click', () => switchChat(chat.id));
-        chatListEl.appendChild(item);
+        dom.chatList.appendChild(item);
     });
-    if (newChatBtn) {
-        newChatBtn.disabled = chats.length >= 5;
+    if (dom.newChatBtn) {
+        dom.newChatBtn.disabled = chats.length >= 5;
     }
 }
 
 function renderMessages(history) {
-    chatMessages.innerHTML = '';
+    dom.chatMessages.innerHTML = '';
     if (!history || history.length === 0) {
         addMessage("Hello! I'm Terminator AI, the ultimate assistant. I can do math, draw, search the web, analyze data, and chat! 🚀\n\nTry asking me something!", false, null);
         return;
@@ -139,7 +152,6 @@ function renderMessages(history) {
 }
 
 function addMessage(text, isUser, image) {
-    // Ensure text is a string
     if (typeof text !== 'string') {
         text = JSON.stringify(text);
     }
@@ -160,12 +172,11 @@ function addMessage(text, isUser, image) {
     }
     content += `</div>`;
     msgDiv.innerHTML = content;
-    chatMessages.appendChild(msgDiv);
+    dom.chatMessages.appendChild(msgDiv);
     scrollToBottom();
 }
 
 function formatMessage(text) {
-    // Ensure text is string (just in case)
     if (typeof text !== 'string') text = String(text);
     let html = text;
     html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
@@ -189,7 +200,7 @@ async function switchChat(chatId) {
     
     const chat = chatList.find(c => c.id === chatId);
     if (chat) {
-        chatNameEl.textContent = chat.name;
+        dom.chatName.textContent = chat.name;
     }
     
     const data = await fetchChatHistory(chatId);
@@ -199,52 +210,45 @@ async function switchChat(chatId) {
     document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
     document.querySelector(`.chat-item[data-chat-id="${chatId}"]`)?.classList.add('active');
     
-    userInput.focus();
+    dom.userInput.focus();
 }
 
 // ---------- Send Message ----------
 async function sendMessage() {
-    const message = userInput.value.trim();
+    const message = dom.userInput.value.trim();
     if (!message || !currentChatId) return;
 
-    // Add user message
     addMessage(message, true, null);
-    userInput.value = '';
+    dom.userInput.value = '';
     scrollToBottom();
 
-    // Show typing
-    typingIndicator.style.display = 'flex';
+    dom.typingIndicator.style.display = 'flex';
 
     try {
         const data = await sendMessageToChat(currentChatId, message);
-        typingIndicator.style.display = 'none';
+        dom.typingIndicator.style.display = 'none';
         
-        console.log('📦 Server response:', data); // debug
+        console.log('📦 Server response:', data);
 
         if (data.error) {
             addMessage('⚠️ Error: ' + data.error, false, null);
         } else {
-            // Extract response text and image
             let responseText = data.response || data.text || data.message || '';
             let image = data.image || null;
-
-            // If responseText is an object, stringify it
             if (typeof responseText === 'object') {
                 responseText = JSON.stringify(responseText);
             }
-
             addMessage(responseText, false, image);
             refreshChatList();
         }
     } catch (e) {
-        typingIndicator.style.display = 'none';
+        dom.typingIndicator.style.display = 'none';
         addMessage('⚠️ Connection error: ' + e.message, false, null);
     }
 }
 
-// ---------- Quick Actions ----------
 function quickSend(text) {
-    userInput.value = text;
+    dom.userInput.value = text;
     sendMessage();
 }
 
@@ -257,27 +261,20 @@ async function refreshChatList() {
 async function createNewChat() {
     console.log('✅ createNewChat() UI handler called!');
     const name = prompt('Enter chat name:', `Chat ${chatList.length + 1}`);
-    if (name === null) {
-        console.log('User cancelled');
-        return;
-    }
-    
+    if (name === null) return;
     const trimmedName = name.trim();
     if (!trimmedName) {
         alert('Chat name cannot be empty.');
         return;
     }
-    
-    console.log(`Creating new chat with name: "${trimmedName}"`);
     const data = await apiCreateNewChat(trimmedName);
-    console.log('Server response:', data);
     if (data && data.error) {
         alert('Error: ' + data.error);
     } else if (data && data.id) {
         await refreshChatList();
         await switchChat(data.id);
     } else {
-        alert('Failed to create chat. Server response was invalid.');
+        alert('Failed to create chat.');
     }
 }
 
@@ -289,7 +286,7 @@ async function deleteCurrentChat() {
         alert('Cannot delete the last chat.');
         return;
     }
-    if (!confirm(`Delete "${chatNameEl.textContent}"?`)) return;
+    if (!confirm(`Delete "${dom.chatName.textContent}"?`)) return;
     const result = await deleteChat(currentChatId);
     if (result.error) {
         alert('Error: ' + result.error);
@@ -305,15 +302,15 @@ async function deleteCurrentChat() {
 
 async function renameCurrentChat() {
     if (!currentChatId) return;
-    const newName = prompt('Enter new chat name:', chatNameEl.textContent);
+    const newName = prompt('Enter new chat name:', dom.chatName.textContent);
     if (newName === null) return;
     const trimmed = newName.trim();
-    if (!trimmed || trimmed === chatNameEl.textContent) return;
+    if (!trimmed || trimmed === dom.chatName.textContent) return;
     const result = await renameChat(currentChatId, trimmed);
     if (result.error) {
         alert('Error: ' + result.error);
     } else if (result.name) {
-        chatNameEl.textContent = result.name;
+        dom.chatName.textContent = result.name;
         await refreshChatList();
     } else {
         alert('Failed to rename chat');
@@ -321,7 +318,7 @@ async function renameCurrentChat() {
 }
 
 // ---------- Keyboard Shortcut ----------
-userInput.addEventListener('keydown', function(e) {
+dom.userInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
@@ -329,12 +326,12 @@ userInput.addEventListener('keydown', function(e) {
 });
 
 // ---------- Event Listeners ----------
-sendButton.addEventListener('click', sendMessage);
-if (newChatBtn) {
-    newChatBtn.addEventListener('click', createNewChat);
+dom.sendButton.addEventListener('click', sendMessage);
+if (dom.newChatBtn) {
+    dom.newChatBtn.addEventListener('click', createNewChat);
 }
-deleteChatBtn.addEventListener('click', deleteCurrentChat);
-renameChatBtn.addEventListener('click', renameCurrentChat);
+dom.deleteChatBtn.addEventListener('click', deleteCurrentChat);
+dom.renameChatBtn.addEventListener('click', renameCurrentChat);
 
 window.sendMessage = sendMessage;
 window.quickSend = quickSend;
@@ -358,14 +355,14 @@ async function init() {
     if (chatList.length > 0) {
         const first = chatList[0];
         currentChatId = first.id;
-        chatNameEl.textContent = first.name;
+        dom.chatName.textContent = first.name;
         const data = await fetchChatHistory(first.id);
         chatHistory = data.history || [];
         renderMessages(chatHistory);
         document.querySelector(`.chat-item[data-chat-id="${first.id}"]`)?.classList.add('active');
     }
     
-    userInput.focus();
+    dom.userInput.focus();
     console.log('Initialization complete!');
 }
 
