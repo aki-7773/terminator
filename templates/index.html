@@ -19,7 +19,8 @@
                 <!-- Populated by JavaScript -->
             </div>
             <div class="sidebar-footer">
-                <button id="newChatBtn" class="new-chat-btn">+ New Chat</button>
+                <!-- ADDED onclick directly and id for reference -->
+                <button id="newChatBtn" class="new-chat-btn" onclick="window.createNewChat()">+ New Chat</button>
                 <div class="status-indicator">
                     <span class="dot online"></span>
                     <span id="statusText">Online</span>
@@ -47,20 +48,35 @@
             <div class="input-area">
                 <div class="input-container">
                     <input type="text" id="userInput" placeholder="Ask me anything..." autofocus>
-                    <button id="sendButton" onclick="sendMessage()">➤</button>
+                    <button id="sendButton" onclick="window.sendMessage()">➤</button>
                 </div>
                 <div class="quick-actions">
-                    <button onclick="quickSend('help')" class="quick-btn">📖 Help</button>
-                    <button onclick="quickSend('tell me a joke')" class="quick-btn">😂 Joke</button>
-                    <button onclick="quickSend('search news')" class="quick-btn">🌐 Search</button>
-                    <button onclick="quickSend('plot sin')" class="quick-btn">📊 Plot</button>
-                    <button onclick="quickSend('draw circle')" class="quick-btn">🎨 Draw</button>
-                    <button onclick="quickSend('weather in Bern')" class="quick-btn">🌤️ Weather</button>
+                    <button onclick="window.quickSend('help')" class="quick-btn">📖 Help</button>
+                    <button onclick="window.quickSend('tell me a joke')" class="quick-btn">😂 Joke</button>
+                    <button onclick="window.quickSend('search news')" class="quick-btn">🌐 Search</button>
+                    <button onclick="window.quickSend('plot sin')" class="quick-btn">📊 Plot</button>
+                    <button onclick="window.quickSend('draw circle')" class="quick-btn">🎨 Draw</button>
+                    <button onclick="window.quickSend('weather in Bern')" class="quick-btn">🌤️ Weather</button>
                 </div>
             </div>
         </main>
     </div>
 
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <!-- Ensure functions are globally accessible -->
+    <script>
+        // Fallback: if script.js didn't attach to window, we do it here.
+        // But script.js already does it.
+        console.log('index.html: ensuring global functions exist');
+        if (typeof window.createNewChat !== 'function') {
+            console.warn('createNewChat not defined, defining fallback');
+            window.createNewChat = function() {
+                alert('New chat function called (fallback)');
+            };
+        }
+    </script>
+</body>
+</html>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
