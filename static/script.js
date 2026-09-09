@@ -117,8 +117,10 @@ function renderChatList(chats) {
         item.addEventListener('click', () => switchChat(chat.id));
         chatListEl.appendChild(item);
     });
+    // Update new chat button state
     if (newChatBtn) {
         newChatBtn.disabled = chats.length >= 5;
+        console.log(`New chat button ${newChatBtn.disabled ? 'disabled' : 'enabled'}`);
     }
 }
 
@@ -295,8 +297,12 @@ async function refreshChatList() {
 }
 
 async function createNewChat() {
+    console.log('Create new chat button clicked!');
     const name = prompt('Enter chat name:', `Chat ${chatList.length + 1}`);
-    if (name === null) return; // user cancelled
+    if (name === null) {
+        console.log('User cancelled');
+        return;
+    }
     
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -304,7 +310,9 @@ async function createNewChat() {
         return;
     }
     
+    console.log(`Creating new chat with name: "${trimmedName}"`);
     const data = await createNewChat(trimmedName);
+    console.log('Server response:', data);
     if (data.error) {
         alert('Error: ' + data.error);
     } else if (data.id) {
